@@ -1,10 +1,20 @@
+import json
+
+
 from BinaryStream import *
 
 
 motlist_file_path = "D:/WS/Modding/DMC/re_chunk_000.pak.patch_005/natives/x64/animation/player/pl0800/motlist/pl0800_yamato.motlist.85"
 
 
-def readUIntAt(bs: BinaryStream, readAt):
+def ReadUInt64(bs: BinaryStream, readAt):
+    pos = bs.tell()
+    bs.seek(readAt)
+    value = bs.read_uint64()
+    bs.seek(pos)
+    return value
+
+def ReadUInt(bs: BinaryStream, readAt):
     pos = bs.tell()
     bs.seek(readAt)
     value = bs.read_uint32()
@@ -45,6 +55,9 @@ def readUnicodeStringAt(bs: BinaryStream, tell):
     buff = struct.pack("<" + "b" * len(string), *string)
     return str(buff, "utf-8")
 
+def skipToNextLine(bs):
+	bs.seek(bs.tell() + 16 - (bs.tell() % 16))
+
 class MotFile:
     
     def __init__(self, dataBytesArray: bytes, motlist=[], start=0):
@@ -63,15 +76,15 @@ class MotFile:
         self.boneClipHdrOffset = bs.readUInt64()
         bs.skip(8)
         if self.version >= 456:
-            bs.seek(8,1)
-            clipFileOffset = bs.readUInt64()
-            jmapOffset = bs.readUInt64()
-            exDataOffset  = bs.readUInt64()
-            bs.seek(16,1)
+            bs.skip(8)
+            self.clipFileOffset = bs.readUInt64()
+            self.jmapOffset = bs.readUInt64()
+            self.exDataOffset  = bs.readUInt64()
+            bs.skip(16)
         else:
             self.jmapOffset = bs.readUInt64()
             self.clipFileOffset = bs.readUInt64()
-            bs.seek(16,1)
+            bs.skip(16)
             self.exDataOffset = bs.readUInt64()
         nameOffs = bs.readUInt64()
         self.name = readUnicodeStringAt(bs, nameOffs)
@@ -91,7 +104,68 @@ class MotFile:
         self.boneClipHeaders = []
         self.kfBones = []
         self.doSkip = False
-        
+
+    def export(self):
+        bs = self.bs
+        bs.seek(self.clipFileOffset)
+        clipOffset = []
+        for i in range(self.clipCount):
+            clipOffset.append(bs.read_uint64())
+        if clipOffset[0] > 0:
+            bs.seek(clipOffset[0])
+        else:
+            bs.skip(16)
+        clips = []
+        for i in range(self.clipCount):
+            if ReadUInt(bs, bs.tell()) !=1346980931 :
+                A1 = bs.read_uint64()
+                clipHdrOffs = bs.read_uint64()
+                Offs = bs.read_uint64()
+                D2 = bs.read_uint32()
+                numFloats = bs.read_uint32()
+                if self.version != 60 :
+                    F1 = bs.read_uint32()
+                while ReadUInt(bs, bs.tell()) !=1346980931:
+                    bs.skip(1)
+            magic = bs.read_uint32()
+            TotalData = bs.read_uint32()
+            NumFrames = bs.read_float32()
+            numClips = bs.read_uint32()
+            numStrings = bs.read_uint32()
+            numData = bs.read_uint32()
+            hash = None
+            if self.version != 99 :
+                hash = bs.read_uint64()
+                hash = bs.read_uint64()
+            clipDataOffs = bs.read_uint64()
+            propertiesOffs = bs.read_uint64()
+            fnDataOffs = bs.read_uint64()
+            namesOffs = bs.read_uint64()
+            namesOffs2 = None
+            if self.version != 85 :
+                namesOffs2 = bs.read_uint64()
+            namesOffsExtra = []
+            if self.version == 60 :
+                for ni in range(5):
+                    namesOffsExtra[ni] = bs.read_uint64()
+            else:
+                for ni in range(4):
+                    namesOffsExtra[ni] = bs.read_uint64()
+            unicodeNamesOffs = bs.read_uint64()
+            endClipStructsOffs = bs.read_uint64()
+            bs.seek(clipDataOffs)
+            
+            # Function Data
+            bs.seek(fnDataOffs)
+            if numData>0:
+                
+
+            bs.seek(endClipStructsOffs)
+            while (ReadUInt64(bs, bs.tell()) == 0):
+                bs.skip(8)
+            nextStructOffs = bs.read_uint64()
+            bs.seek(nextStructOffs)
+
     # def checkIfSyncMot(self, other):
     #     return (self.frameCount == other.frameCount)
     #     '''if self.frameCount == other.frameCount:
@@ -426,12 +500,14 @@ class MotListFile:
         for i in range(numOffsets):
             bs.seek(pointersOffset + i * 8)
             motAddress = bs.readUInt64()
-            if (motAddress and motAddress not in self.pointers and readUIntAt(bs, motAddress + 4) == 544501613):  # 'mot'
+            if (motAddress and motAddress not in self.pointers and ReadUInt(bs, motAddress + 4) == 544501613):  # 'mot'
                 self.pointers.append(motAddress)
                 bs.seek(motAddress)
                 mot = MotFile(bs.read(bs.get_buffer_length() - bs.tell()), self, motAddress)
                 self.mots.append(mot)
                 print(mot.name)
+                if mot.name == "pl0800_YMT_Walk_Loop (64 frames)":
+                    mot.export()
 
 def exportMotlistFile(path):
     meshBuffer = None

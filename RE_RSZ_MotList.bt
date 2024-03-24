@@ -219,7 +219,6 @@ typedef struct {
     
 
 typedef struct CLIP_ENTRY {
-
     struct {
         if (ReadUInt(FTell()) != 1346980931) {
             uint64 A1, clipHdrOffs;
@@ -329,7 +328,7 @@ typedef struct CLIP_ENTRY {
 typedef struct clip {
 
     if (!bEndOfClip) {
-        uint64 clipOffset[MOT_HEADER.uknPointer2Count] <name="Offsets", optimize=false>;
+        uint64 clipOffset[MOT_HEADER.clipCount] <name="Offsets", optimize=false>;
     } else {
         FSkip(16);
         uint64 clipOffset[2] <name="Offsets">;
@@ -342,16 +341,17 @@ typedef struct clip {
     if (NOCLIP == FALSE) {
     	local int clipCounter <hidden=true> = 0;
     	if (!bEndOfClip)
-        	CLIP_ENTRY Clip[MOT_HEADER.uknPointer2Count] <optimize=false>;
-    	else while (findNextOfInt(1346980931) != FileSize() && findNextOfInt(1346980931) < FTell() + 120 ) {
-        	if (exists(Clip[clipCounter])) {
-            	Printf("Seeking to next Clip at %u\n", Clip[clipCounter].nextStructOffs);
-            	FSeek(Clip[clipCounter].nextStructOffs);
-            	clipCounter++;
-        	}
-        	CLIP_ENTRY Clip;
-        	
-    	}   
+        	CLIP_ENTRY Clip[MOT_HEADER.clipCount] <optimize=false>;
+    	else {
+            while (findNextOfInt(1346980931) != FileSize() && findNextOfInt(1346980931) < FTell() + 120 ) {
+                if (exists(Clip[clipCounter])) {
+                    Printf("Seeking to next Clip at %u\n", Clip[clipCounter].nextStructOffs);
+                    FSeek(Clip[clipCounter].nextStructOffs);
+                    clipCounter++;
+                }
+                CLIP_ENTRY Clip;
+            }
+        }   
 	} 
     
     if (exists(MOT_HEADER) && MOT_HEADER.Offs2 != 0 && ReadUInt64(MOT_HEADER.Offs2 + start + 8) > 0) {
@@ -469,7 +469,7 @@ typedef struct clip {
         uint32 endHashes[dataHeader.endHashCount * 2] <name="End Hashes">;
     }
 };
-    string ReadPSTRUCT(PSTRUCT &input) { return input.name; }
+string ReadPSTRUCT(PSTRUCT &input) { return input.name; }
 
 typedef struct keys (uint32 keyCount, uint32 flags, uint64 frameDataOffs) {
     switch (flags >> 20)
@@ -953,8 +953,8 @@ typedef struct {
 } POINTERS <read=ReadPOINTERS>;
     string ReadPOINTERS (POINTERS &input) { return input.motName; }
 
-typedef struct motHdr {
-    uint    version;
+typedef struct motHeader {
+    uint    version<bgcolor=0x33F4AF>;
     char    ID[4]; 
     uint32  ukn00;
     uint32  motSize;
@@ -972,7 +972,7 @@ typedef struct motHdr {
     float   uknFloat;
     ushort  boneCount;
     ushort  boneClipCount;
-    ubyte   uknPointer2Count;
+    ubyte   clipCount;
     ubyte   uknPointer3Count;
     ushort  FrameRate;
     ushort  uknPointerCount;
@@ -1081,7 +1081,7 @@ typedef struct {
 //main mot struct
 typedef struct {
     start = FTell();
-    motHdr MOT_HEADER <open=false>;
+    motHeader MOT_HEADER <open=false>;
     if (!exists(HEADER)) {
         struct { local int version = 99; } HEADER <hidden=true>; //false header
         if (MOT_HEADER.version == 43) HEADER.version = 60;
