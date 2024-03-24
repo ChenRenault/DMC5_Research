@@ -1,0 +1,26 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+FSeek(0);
+
+uint MagicNumber<bgcolor=0x00FFFF>;
+uint TextNum<bgcolor=0x00FF00>;
+uint sequenceNum;
+uint patternNum;
+uint attribute;
+uint reserve;
+uint64 texturePtr;
+uint64 sequencePtr;
+
+uint64 patternPtr;
+uint64 stringPtr;

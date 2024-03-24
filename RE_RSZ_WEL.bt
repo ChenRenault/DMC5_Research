@@ -1,0 +1,136 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+
+typedef struct{
+    uint32 clipIDNameHash<bgcolor=0xFF0000>;
+    uint32 eventID<name="Event Object ID", bgcolor=0x0000FF>;
+    FSkip(54);
+} WWEVStruct;
+
+//Murmur3 hash generation by Darkness:
+uint32 fmix32(uint32 h){
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
+}
+
+uint32 mmh3 (byte key[], uint32 length , uint32 seed){
+    local uint64 block_start<hidden=true>;
+    local const uint nBlocks = length / 4;
+    local uint32 h1 = seed;
+    
+    local const uint32 c1 = 0xcc9e2d51;
+    local const uint32 c2 = 0x1b873593;
+
+    local uint32 k1;
+    for(block_start = 0; block_start < nBlocks * 4; block_start+= 4){
+        k1 = (uint32)key[block_start + 3] << 24 | \
+             (uint32)key[block_start + 2] << 16 | \
+             (uint32)key[block_start + 1] << 8 | \
+             (uint32)key[block_start + 0];
+
+        k1 = (c1 * k1) & 0xFFFFFFFF;
+        k1 = (k1 << 15 | k1 >> 17) & 0xFFFFFFFF;
+        k1 = (c2 * k1) & 0xFFFFFFFF;
+
+        h1 ^= k1;
+        h1 = (h1 << 13 | h1 >> 19) & 0xFFFFFFFF;
+        h1 = (h1 * 5 + 0xe6546b64) & 0xFFFFFFFF;
+    }
+
+    local uint32 tail_index = nBlocks * 4;
+    k1 = 0;
+    local uint32 tail_size = length & 3;
+
+    if(tail_size >= 3)
+        k1 ^= (uint32)key[tail_index + 2] << 16;
+    if(tail_size >= 2)
+        k1 ^= (uint32)key[tail_index + 1] << 8;
+    if(tail_size >= 1)
+        k1 ^= (uint32)key[tail_index + 0];
+
+    if(tail_size > 0){
+        k1 = (k1 * c1) & 0xFFFFFFFF;
+        k1 = (k1 << 15 | k1 >> 17) & 0xFFFFFFFF;
+        k1 = (k1 * c2) & 0xFFFFFFFF;
+        h1 ^= k1;
+    }
+
+    return fmix32(h1 ^ length);
+}
+
+uint32 hash_wide(string key){
+    local uint64 it<hidden=true>;
+    local const uint length = Strlen(key) * 2;
+    if (length) {
+        local byte key_array[length];
+        for(it = 0; it < length; it += 2){
+            key_array[it] = key[it / 2];
+            key_array[it + 1] = 0;
+        }
+        return mmh3(key_array, length, 0xFFFFFFFF);
+    } return 0;
+}
+
+typedef struct {
+    ubyte dummy <hidden=true>;
+    local string String_Form = "";
+    local int Hash_Form;
+    local uint Hash_Form_unsigned;
+    local uint eventID;
+} HashGenerator <read=ReadStringToHash, write=WriteStringToHash, open=true>;
+    
+string ReadStringToHash(HashGenerator &h) {
+    if (h.Hash_Form )  {
+        local string ss; SPrintf(ss, "%i (%u)[%u] = %s", h.Hash_Form, h.Hash_Form_unsigned, h.eventID, h.String_Form);
+        return ss;
+    } return "      [Input a String here to turn it into a Murmur3 Hash]"; 
+}
+
+void WriteStringToHash(HashGenerator &h, string s) {
+    h.String_Form = s;
+    h.Hash_Form = hash_wide(h.String_Form);
+    h.Hash_Form_unsigned = hash_wide(h.String_Form);
+    h.eventID = 0;
+
+    FSeek(0x200);
+    if (FTell() + 12 > FileSize())
+        return;
+    local uint structCount = ReadUInt();
+    FSkip(4);
+    local int64 pos = FTell();
+    local int a = 0;
+    for(a = 0; a < structCount; a++)
+    {
+        if(ReadUInt(pos + a * 62) == h.Hash_Form_unsigned) {
+            h.eventID = ReadUInt(pos + a * 62 + 4);
+            return;
+        }
+    }
+}
+
+FSeek(0);
+struct {
+    HashGenerator HashMaker <name="Hash Generator">;
+    FSkip(-1);
+    wstring WWBKstring<bgcolor=0xFFFF00>;
+} Header<open=true>;
+
+
+FSeek(0x0200);
+uint structCount<bgcolor=0x00FFFF>;
+WWEVStruct WWEVData[structCount]<optimize=false>;

@@ -1,0 +1,1278 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: RE_RSZ_MotList.bt
+//   Authors: 
+//   Version: 
+//   Purpose: Parse RE Engine motlist (DMC5)
+//  Category: RE Engine
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+LittleEndian();
+
+//Set this to TRUE to make the template skip decompressing all the frame data:
+local int SKIP <hidden=true> = FALSE; 
+local int SKIPALL <hidden=true> = FALSE; 
+local int NOCLIP <hidden=true> = FALSE;
+
+local int64 i <hidden=true> = 0, numOffs <hidden=true> = 0, bEndOfClip <hidden=true> = FALSE,
+            j <hidden=true> = 0, pos <hidden=true>, Type <hidden=true>,
+            start <hidden=true>, k <hidden=true> = 0, fnData <hidden=true>,
+            frame <hidden=true>, pos2 <hidden=true>, pos3 <hidden=true>,
+            motCounter <hidden=true> = 0, boneHeadersIdx <hidden=true> = 0, version <hidden=true>;
+local char  bytes[8] <hidden=true>;
+local byte  bIsMotFile <hidden=true> = 0;
+
+
+/* ----DEFINITIONS---- */
+#define TRANSLATION (1)
+#define ROTATION (1 << 1)
+#define SCALE (1 << 2)
+
+void findEndOfMot() {
+    while (FTell()+4 < FileSize()) {
+        if (ReadUInt(FTell()) == 544501613) {
+            FSkip(-4); break;
+        }
+        FSkip(1);
+    }
+}
+
+uint getMotSize(uint offset) {
+	local uint posStart = FTell();
+	local uint posEnd = offset;
+	FSeek(offset);
+    while (FTell()+4 < FileSize()) {
+        if (ReadUInt(FTell()) == 544501613 || FTell() == HEADER.colOffs || FTell() == FileSize()) {
+			if (ReadUInt(FTell()) == 544501613)
+            	FSkip(-4); 
+			break;
+        }
+        FSkip(1);
+    }
+	posEnd = FTell();
+	FSeek(posStart);
+	return posEnd;
+}
+
+int findNextOfInt(int toFind) {
+    pos3 = FTell();
+    while (FTell()+4 < FileSize()) {
+        if (ReadUInt(FTell()) == toFind) {
+            FSkip(-4); break;
+        }
+        FSkip(1);
+    }
+    local int finalPos = FTell();
+    FSeek(pos3);
+    return finalPos;
+}
+
+void skipToNextLine() {
+    while (FTell() % 16 != 0) FSkip(1);
+}
+
+uint isHighestOffset(uint64 offset) {
+    for (j=0; j<HEADER.numOffs; j++) {
+        if (HEADER.Pointers[j] > offset)
+            return 0;
+    }
+    return 1;
+}
+
+uint isBeforeColOffs(uint64 offset) {
+    for (j=0; j<HEADER.numOffs; j++) {
+        if (HEADER.Pointers[j] > offset && HEADER.Pointers[j] < HEADER.colOffs)
+            return 0;
+    }
+    return 1;
+}
+
+typedef ushort trckFlg_t<read=ReadTrckFlg, write=WriteTrckFlg>;
+    string ReadTrckFlg(trckFlg_t f){
+        string s;
+        SPrintf(s, "%c %c %c", 
+                 84 * (f & TRANSLATION),
+                 82 * ( (f & ROTATION) >> 1 ),
+                 83 * ( (f & SCALE) >> 2 )
+                );
+        return s;
+    }
+
+typedef struct {
+    if (Type == 6 && (exists(parentof(this).Data[1]))) FSkip(4);
+    float Value;
+    FSkip (4);
+    uint64 SubDataType; 
+    //if (HEADER.version == 60) FSkip(4);
+    if (SubDataType == 2){ //double
+        FSkip(4); 
+        float Rate; 
+    } else if (((SubDataType == 3)||(SubDataType == 1))){ // Int. Usually ID, Different from Type 1
+        int32 ID;
+        if (Type != 6) {
+            pos2 = FTell(); 
+            if (clipHeader.namesOffsExtra[1]+start+ID < FileSize()) {
+                FSeek(clipHeader.namesOffsExtra[1]+start+ID); 
+                if (ID < FileSize() && ID>1 && ReadUByte(FTell()) != 0 && ReadUByte(FTell()-1) == 0 && sizeof(ReadString(FTell())) > 2) 
+                    string IDName_FnNames; 
+            
+                FSeek(clipHeader.unicodeNamesOffs+start+(ID*2)); 
+                if (ID < FileSize() && ID>1 && ReadUByte(FTell()) != 0 && ReadUByte(FTell()-2) == 0) 
+                    wstring IDName_clipNames; 
+            }
+            FSeek(pos2 + 4);
+        } 
+    } else if (SubDataType == 5){ // Double Float
+        double Angle; 
+        uint32 AngleID; 
+        FSkip(-4); 
+    } else { 
+        
+        uint64 UnkDataValue <format=hex>; 
+        FSkip(4); 
+    }
+    FSkip(16);
+} FUNCTIONDATA <name=ReadFUNCTIONDATANAME, read=ReadFUNCTIONDATA, write=WriteFUNCTIONDATA, optimize=true>;
+wstring ReadFUNCTIONDATA(FUNCTIONDATA &input) {
+    string s;
+    SPrintf(s, "%i", input.Value);
+    return s;
+}
+wstring ReadFUNCTIONDATANAME(FUNCTIONDATA &input) {
+    string s = "";
+    if (exists(input.IDName_FnNames)) s = input.IDName_FnNames + "  ";
+    if (exists(input.IDName_clipNames)) s += ":  " + input.IDName_clipNames;
+    return s;
+}
+void WriteFUNCTIONDATA (FUNCTIONDATA &f, string s ) { local float ff = Atof(s); f.Value = ((float)(ff));}
+
+typedef struct {
+    if (HEADER.version==60) FSkip(4);
+    uint32 pad <hidden=true>;
+    float ValueA <name="Value A (Start)">;
+    float ValueB <name="Value B (End)">;
+    if (HEADER.version==60) {uint32 C1, C2, DataType;}
+    else uint64 C1;
+    uint32 DataType;
+    uint64 hash;
+    uint64 nameOffset, nameOffset; 
+    FSkip(24);
+    if (DataType != 22){
+        uint64 FuncDataIndex, FuncDataNum;
+        fnData += FuncDataNum;
+        pos = FTell() + 24;
+        FSeek(clipHeader.fnDataOffs + start + (40*FuncDataIndex));
+        if (FuncDataNum > 0){
+            Type = DataType;
+            if (Type == 19)
+                FSeek(clipHeader.fnDataOffs + start + (40*FuncDataNum));
+                //string String;
+            //else
+                FUNCTIONDATA Data[FuncDataNum] <optimize=false>;
+        }
+
+        FSeek(clipHeader.namesOffsExtra[1] + start + nameOffset[1]);
+        string FunctionName;
+        FSeek(clipHeader.unicodeNamesOffs + start + nameOffset[1]*2);
+        wstring wFunctionName;
+        FSeek(pos);
+    }
+    else if (DataType == 22){
+        uint64 FunctionID, FuncDataNum;
+        fnData += FuncDataNum;
+        FSkip(24);
+        local string FunctionName = ReadString(clipHeader.namesOffsExtra[1] + start + nameOffset[0]);
+        local wstring wFunctionName = ReadWString(clipHeader.unicodeNamesOffs + start + nameOffset[0]*2);
+    }
+} PROPERTY <read=ReadPROPERTY, write=WritePROPTERTY>;
+    string ReadPROPERTY (PROPERTY &input) { 
+        string s = "";
+        SPrintf(s, "%i", input.ValueA);
+        return s; 
+    }
+    string ReadPROPERTYNAME (PROPERTY &input) { return input.FunctionName; }
+    void WritePROPTERTY (PROPERTY &f, string s ) { local float ff = Atof(s); f.ValueA = ((float)(ff));}
+
+typedef struct {
+    uint32 ukn0, propCount;
+    float Start_Frame, End_Frame;
+    uint64 hashes[4];
+    FSkip(8); 
+    uint64 hash; 
+    uint64 nameOffset, nameOffset, B1;
+    if (HEADER.version == 85) 
+        uint64 firstPropIdx;
+    pos = FTell();
+    if (HEADER.version == 99) {
+        FSeek(clipHeader.unicodeNamesOffs + start + nameOffset[1] * 2);
+        wstring name;
+    } else {
+        FSeek(clipHeader.namesOffsExtra[1] + start + nameOffset[0]);
+        string name;
+    }
+    FSeek(pos);
+} CTRACKS <read=ReadCTRACKS>;
+    string ReadCTRACKS (CTRACKS &input) { return input.name; }
+    
+
+typedef struct CLIP_ENTRY {
+
+    struct {
+        if (ReadUInt(FTell()) != 1346980931) {
+            uint64 A1, clipHdrOffs;
+            uint64 Offs;
+            uint32 D2, numFloats;
+            if (HEADER.version != 60) uint32 F1;
+            while (ReadUInt(FTell()) != 1346980931) FSkip(1); // CLIP
+        }
+
+        uint32 magic, TotalData; 
+        float NumFrames; 
+        uint32 numClips, numStrings, numData;
+        if (HEADER.version != 99)  {
+            uint64 hash; 
+            uint64 hash; 
+        }
+        uint64 clipDataOffs, propertiesOffs;
+        uint64 fnDataOffs;
+        uint64 namesOffs;
+        if (HEADER.version == 85)
+            uint64 namesOffs2;
+        
+        if (HEADER.version == 60) uint64 namesOffsExtra[5];
+        else uint64 namesOffsExtra[4];
+        uint64 unicodeNamesOffs;
+        uint64 endClipStructsOffs;
+    } clipHeader <name="Header">;
+
+    FSeek(clipHeader.clipDataOffs + start);
+    if (clipHeader.numClips > 0) {
+        struct {
+            CTRACKS cTrack[clipHeader.numClips] <optimize=false>;
+        } cTracks <name="Tracks">;
+    }
+
+    FSeek(clipHeader.propertiesOffs + start);
+    if (clipHeader.numStrings > 0) {
+        struct {
+            for (k=0; k<clipHeader.numClips; k++) {
+                if (cTracks.cTrack[k].propCount > 0) {
+                    typedef struct {
+                        local string name<hidden=true>  = cTracks.cTrack[k].name ;
+                        PROPERTY Property[cTracks.cTrack[k].propCount] <name=ReadPROPERTYNAME, optimize=false>;
+                    } PSTRUCT <read=ReadPSTRUCT>;
+                    PSTRUCT cTrack;
+                }
+            }
+        } Properties;
+    }
+    
+    if (HEADER.version == 99) FSeek(clipHeader.fnDataOffs + start);
+    else FSeek(clipHeader.fnDataOffs + start);
+
+    if (clipHeader.numData > 0) {
+        if (HEADER.version == 85) {
+            struct {
+                FUNCTIONDATA Data[clipHeader.numData] <optimize=false>;
+            } FunctionData <name="Function Data">;
+        }
+        else {
+            struct {
+                float FrameStart, FrameEnd;
+                uint64 DataType, DataValue; 
+                FSkip(8);
+            } Function[clipHeader.numData] <optimize=true>;
+        }
+    }
+
+    if (clipHeader.namesOffsExtra[1] - clipHeader.namesOffs > 0) {
+        FSeek(clipHeader.namesOffs+start);
+        float Unknown_Floats[(clipHeader.namesOffsExtra[1] - clipHeader.namesOffs) / 4];
+    }
+    
+    FSeek(clipHeader.namesOffsExtra[1] + start);
+    struct {
+        for (k = 0; k < clipHeader.numStrings + clipHeader.numClips; k++) {
+            struct {
+                string Name;
+            } Name <open=true>;
+        }
+    } Names;
+    
+    FSeek(clipHeader.unicodeNamesOffs + start);
+    struct {
+        for (k = 0; k < clipHeader.numStrings + clipHeader.numClips; k++) {
+            struct {
+                wstring Name;
+            } Name <open=true>;
+        }
+    } NamesUnicode <name="Names (Unicode)">;
+
+    FSeek(clipHeader.endClipStructsOffs + start);
+    while (ReadUInt64(FTell()) == 0) FSkip(8);
+    uint64 nextStructOffs <name="Next Structure">;
+    if (HEADER.version != 60 && clipHeader.numClips - 1 > 0) {
+        struct {
+            struct {
+                int32 ukn;
+                uint32 ukn1;
+                uint64 ukn2;
+            } endClipStruct[clipHeader.numClips-1] <optimize=false, open=true>;
+        } endClipStructs  <name="End Clip Structures">;
+    }
+    FSeek(nextStructOffs + start);
+};  
+
+typedef struct clip {
+
+    if (!bEndOfClip) {
+        uint64 clipOffset[MOT_HEADER.uknPointer2Count] <name="Offsets", optimize=false>;
+    } else {
+        FSkip(16);
+        uint64 clipOffset[2] <name="Offsets">;
+    }
+
+    if (clipOffset[0] > 0) 
+		FSeek(clipOffset[0] + start);
+    else FSkip(16);
+
+    if (NOCLIP == FALSE) {
+    	local int clipCounter <hidden=true> = 0;
+    	if (!bEndOfClip)
+        	CLIP_ENTRY Clip[MOT_HEADER.uknPointer2Count] <optimize=false>;
+    	else while (findNextOfInt(1346980931) != FileSize() && findNextOfInt(1346980931) < FTell() + 120 ) {
+        	if (exists(Clip[clipCounter])) {
+            	Printf("Seeking to next Clip at %u\n", Clip[clipCounter].nextStructOffs);
+            	FSeek(Clip[clipCounter].nextStructOffs);
+            	clipCounter++;
+        	}
+        	CLIP_ENTRY Clip;
+        	
+    	}   
+	} 
+    
+    if (exists(MOT_HEADER) && MOT_HEADER.Offs2 != 0 && ReadUInt64(MOT_HEADER.Offs2 + start + 8) > 0) {
+
+        FSeek(MOT_HEADER.Offs2 + start);
+        struct {
+            uint64 ukn;
+            uint64 dataSize;
+            uint32 uknSCount, endHashCount;
+            uint64 Blank;
+            uint64 dataHdrSz1, dataHdrSz2;
+            struct {
+                if (uknSCount-1)
+                    struct {
+                        uint32 ukn, ukn;
+                        uint32 Hash, Hash;
+                        uint64 subStructsOffs; 
+						uint64 mainSubStructOffs;
+						
+						if (MOT_HEADER.Offs2 + start + subStructsOffs < FileSize()) {
+							FSeek(MOT_HEADER.Offs2 + start + subStructsOffs);
+							struct {
+								uint32 ukn[12];
+								FSeek(MOT_HEADER.Offs2 + start + ukn[4]);
+								ushort endFrame;
+							} subStruct;
+						} 
+
+						
+						if (MOT_HEADER.Offs2 + start + mainSubStructOffs < FileSize()) {
+							FSeek(MOT_HEADER.Offs2 + start + mainSubStructOffs);
+							struct {
+								uint32 ukn[8];
+								FSeek(MOT_HEADER.Offs2 + start + ukn[0]);
+								uint ukn2[ukn[3]];
+							} Sub_FrameData;
+						} 
+						FSeek(startof(mainSubStructOffs)+8);
+                    } uknStruct[uknSCount-1] <optimize=false>;
+                struct {
+                    uint32 finalUkn, finalUkn, finalHash, finalHash;
+                    uint64 finalUkn1; 
+                    uint32 endHash, finalUkn2;
+                } finalUknStruct;
+            } uknStructs <name="Unknown Structures">;
+            struct {
+                uint32 endHash, ukn, hash2, ukn1;
+                uint64 offset;
+                pos2 = FTell();
+                FSeek (MOT_HEADER.Offs2 + offset + start);
+                uint32 ukn2;
+                FSeek(pos2);
+            } hashStruct[6] <optimize=false>;
+            if (uknSCount > 1) {
+                struct {
+                    for (j = 0; j < uknSCount - 1; j++) {
+                        struct {
+                            if (uknStructs.uknStruct[j].mainSubStructOffs != 33845916581) {
+                                FSeek(MOT_HEADER.Offs2 + start + uknStructs.uknStruct[j].subStructsOffs);
+                                struct { 
+                                    uint64 offs_Or_Value; 
+                                    uint32 hash, ukn; 
+                                } subStruct[3] <optimize=false, open=true>;
+                                FSeek(MOT_HEADER.Offs2 + start + uknStructs.uknStruct[j].mainSubStructOffs);
+                                struct { 
+                                    uint64 fDataOffs; 
+                                    uint32 hash, frameCount;   
+                                } MainSubStruct <optimize=false, open=true>;
+                                uint32 pad, ukn; uint64 padding;
+                            }
+                        } uknStruct2;
+                    }
+                } uknStructs2 <name="Unknown Structures 2">;
+            }
+        } dataHeader <name="Data Header">;
+
+        struct {
+            FSeek(dataHeader.hashStruct[0].offset + MOT_HEADER.Offs2 + start);
+            uint32 FrameData[MOT_HEADER.uknFloat[1] + 1]; 
+            FSeek(dataHeader.hashStruct[1].offset + MOT_HEADER.Offs2 + start);
+            uint32 FrameIdx[MOT_HEADER.uknFloat[1] + 1];
+            if (exists(dataHeader.uknStructs2.uknStruct2[0]))
+            if ((MOT_HEADER.Offs2 + start + dataHeader.uknStructs2.uknStruct2[0].MainSubStruct.fDataOffs) != (dataHeader.hashStruct[2].offset + MOT_HEADER.Offs2 + start)) {
+                FSeek(dataHeader.hashStruct[2].offset + MOT_HEADER.Offs2 + start);
+                uint32 FrameUkn[6];
+                FSeek(dataHeader.hashStruct[4].offset + MOT_HEADER.Offs2 + start);
+                uint32 FrameUkn2[2];
+            }
+            if (dataHeader.uknSCount > 1) {
+                FSeek(MOT_HEADER.Offs2 + start + dataHeader.uknStructs2.uknStruct2[0].MainSubStruct.fDataOffs);
+                struct {
+                    for (j = 0; j < dataHeader.uknSCount - 1; j++) {
+                        FSeek(MOT_HEADER.Offs2 + start + dataHeader.uknStructs2.uknStruct2[j].MainSubStruct.fDataOffs);
+                        struct {
+                            struct {
+                                for (k = 0; k < dataHeader.uknStructs2.uknStruct2[j].MainSubStruct.frameCount; k++)
+                                    struct {
+                                        ubyte A, B, C, D;
+                                    } frame;
+                            } Frames <open=true>;
+                            local int count = dataHeader.uknStructs2.uknStruct2[j].MainSubStruct.frameCount;
+                        } FrameData ;
+                    } 
+                } Sub_FrameData;
+                struct {
+                    for (j = 0; j < dataHeader.uknSCount - 1; j++) {
+                        FSeek(MOT_HEADER.Offs2 + start + dataHeader.uknStructs2.uknStruct2[j].subStruct[1].offs_Or_Value);
+                        ushort Frame;
+                    } 
+                } endFrameData;
+            }
+        } Frame_Data <name="Frame Data">;
+
+        FSeek(MOT_HEADER.Offs2 + start + dataHeader.dataSize);
+        uint32 endHashes[dataHeader.endHashCount * 2] <name="End Hashes">;
+    }
+};
+    string ReadPSTRUCT(PSTRUCT &input) { return input.name; }
+
+typedef struct keys (uint32 keyCount, uint32 flags, uint64 frameDataOffs) {
+    switch (flags >> 20)
+    {
+        case 2:
+            ubyte frameIndex[keyCount];
+            break;
+        
+        case 4:
+            int16 frameIndex[keyCount];
+            break;
+
+        case 5:
+            int32 frameIndex[keyCount];
+            break;
+
+        default:
+            break;
+    }
+};
+
+typedef struct FrameData (uint32 keyCount, uint32 flags, uint64 frameDataOffs) {
+    local uint keyFrameDataType <format=hex> = flags & 0xF00000;
+    local uint keyFrameDataTypeOther <format=hex> = flags >> 20;
+    local uint compression <format=hex> = flags & 0xFF000;
+ 
+    local uint unkFlag <format=hex> = flags & 0xFFF;
+};
+
+typedef ulong LocFrameType_t<name="Translation Decompression", read=ReadLocFrameType, write=WriteLocFrameType>;
+    string ReadLocFrameType(LocFrameType_t f){
+    if (MOT[0].MOT_HEADER.version == 65 || MOT[0].MOT_HEADER.version == 43) { 
+        switch (f & 0xFF000)
+        {   //RE2 and RE7
+            case 0x00000: string s = "LoadVector3sFull"; break;
+            case 0x20000: string s = "LoadVector3s5BitA"; break;
+            case 0x30000: string s = "LoadVector3s10BitA"; break;
+            case 0x40000: string s = "LoadVector3s10BitA"; break;
+            case 0x70000: string s = "LoadVector3s21BitA"; break;
+            case 0x31000: string s = "LoadVector3sXAxis"; break;
+            case 0x32000: string s = "LoadVector3sYAxis"; break;
+            case 0x33000: string s = "LoadVector3sZAxis"; break;
+            case 0x21000: string s = "LoadVector3sXAxis16Bit"; break;
+            case 0x22000: string s = "LoadVector3sYAxis16Bit"; break;
+            case 0x23000: string s = "LoadVector3sZAxis16Bit"; break;
+            default: string s = "Unknown Type"; break;
+        }
+    } else {
+        switch (f & 0xFF000)
+        {   //RE3
+            case 0x00000: string s = "LoadVector3sFull"; break;
+            case 0x20000: string s = "LoadVector3s5BitB"; break;
+            case 0x30000: string s = "LoadVector3s5BitB"; break;
+            case 0x40000: string s = "LoadVector3s10BitB"; break;
+            case 0x80000: string s = "LoadVector3s21BitB"; break;
+            case 0x21000: string s = "LoadVector3sXAxis16Bit"; break;
+            case 0x22000: string s = "LoadVector3sYAxis16Bit"; break;
+            case 0x23000: string s = "LoadVector3sZAxis16Bit"; break;
+            case 0x24000: string s = "LoadVector3sXYZAxis16Bit"; break;
+            case 0x41000: string s = "LoadVector3sXAxis"; break;
+            case 0x42000: string s = "LoadVector3sYAxis"; break;
+            case 0x43000: string s = "LoadVector3sZAxis"; break;
+            case 0x44000: string s = "LoadVector3sXYZAxis"; break;
+            default: string s = "Unknown Type"; break;
+        }
+    }
+        return s;
+    }
+
+typedef float VectorFull <read=VectorRead, write=VectorWrite>;
+    string VectorRead( VectorFull f ) {
+        string s;
+        SPrintf( s, "%f", f*100.0f );
+        return s;
+    }
+    void VectorWrite( VectorFull &f, string s ) {
+        local float ff = Atof(s);
+        f = (VectorFull )( (float)(ff / 100.0f) );
+    }
+
+typedef ulong RotFrameType_t<name="Rotation Decompression", read=ReadRotFrameType, write=WriteRotFrameType>;
+    string ReadRotFrameType(RotFrameType_t f){
+    if (MOT[0].MOT_HEADER.version == 65 || MOT[0].MOT_HEADER.version == 43) { 
+        switch (f & 0xFF000)
+        {   //RE2 and RE7
+            case 0x00000: string s = "LoadQuaternionsFull"; break;
+            case 0xB0000: string s = "LoadQuaternions3Component"; break;
+            case 0xC0000: string s = "LoadQuaternions3Component"; break;
+            case 0x30000: string s = "LoadQuaternions10Bit"; break;
+            case 0x40000: string s = "LoadQuaternions10Bit"; break;
+            case 0x50000: string s = "LoadQuaternions16Bit"; break;
+            case 0x70000: string s = "LoadQuaternions21Bit"; break;
+            case 0x21000: string s = "LoadQuaternionsXAxis16Bit"; break;
+            case 0x22000: string s = "LoadQuaternionsYAxis16Bit"; break;
+            case 0x23000: string s = "LoadQuaternionsZAxis16Bit"; break;
+            case 0x31000: string s = "LoadQuaternionsXAxis"; break;
+            case 0x41000: string s = "LoadQuaternionsXAxis"; break;
+            case 0x32000: string s = "LoadQuaternionsYAxis"; break;
+            case 0x42000: string s = "LoadQuaternionsYAxis"; break;
+            case 0x33000: string s = "LoadQuaternionsZAxis"; break;
+            case 0x43000: string s = "LoadQuaternionsZAxis"; break;
+            default: string s = "Unknown Type"; break;
+        }
+    } else {                    
+        switch (f & 0xFF000)
+        {   //RE3
+            case 0x00000: string s = "LoadQuaternionsFull"; break;
+            case 0xB0000: string s = "LoadQuaternions3Component"; break;
+            case 0xC0000: string s = "LoadQuaternions3Component"; break;
+            case 0x20000: string s = "LoadQuaternions5Bit"; break;
+            case 0x30000: string s = "LoadQuaternions8Bit"; break;
+            case 0x40000: string s = "LoadQuaternions10Bit"; break;
+            case 0x50000: string s = "LoadQuaternions13Bit"; break;
+            case 0x60000: string s = "LoadQuaternions16Bit"; break;
+            case 0x70000: string s = "LoadQuaternions18Bit"; break;
+            case 0x80000: string s = "LoadQuaternions21Bit"; break;
+            case 0x40000: string s = "LoadQuaternions10Bit"; break;
+            case 0x21000: string s = "LoadQuaternionsXAxis16Bit"; break;
+            case 0x22000: string s = "LoadQuaternionsYAxis16Bit"; break;
+            case 0x23000: string s = "LoadQuaternionsZAxis16Bit"; break;
+            case 0x31000: string s = "LoadQuaternionsXAxis"; break;
+            case 0x41000: string s = "LoadQuaternionsXAxis"; break;
+            case 0x32000: string s = "LoadQuaternionsYAxis"; break;
+            case 0x42000: string s = "LoadQuaternionsYAxis"; break;
+            case 0x33000: string s = "LoadQuaternionsZAxis"; break;
+            case 0x43000: string s = "LoadQuaternionsZAxis"; break;
+            default: string s = "Unknown Type"; break;
+        }
+    }
+        return s;
+    }
+
+typedef ulong ScaleFrameType_t<name="Scale Decompression", read=ReadScaleFrameType, write=WriteScaleFrameType>;
+    string ReadScaleFrameType(ScaleFrameType_t f){
+    switch (f & 0xFF000)
+    {
+        case 0x00000: string s = "LoadVector3sFull"; break;
+        case 0x20000: string s = "LoadVector3s5BitA"; break;
+        case 0x30000: string s = "LoadVector3s10BitA"; break;
+        case 0x34000: string s = "LoadScalesXYZ"; break; 
+        case 0x40000: string s = "LoadVector3s10BitA"; break;
+        case 0x70000: string s = "LoadVector3s21BitA"; break;
+        case 0x31000: string s = "LoadVector3sXAxis"; break;
+        case 0x32000: string s = "LoadVector3sYAxis"; break;
+        case 0x33000: string s = "LoadVector3sZAxis"; break;
+        case 0x21000: string s = "LoadVector3sXAxis16Bit"; break;
+        case 0x22000: string s = "LoadVector3sYAxis16Bit"; break;
+        case 0x23000: string s = "LoadVector3sZAxis16Bit"; break;
+        default: string s = "Unknown Type"; break;
+    }
+        return s;
+    }
+
+typedef struct track {
+    uint32 flags <format=binary>; //track compression among them
+    uint32 keyCount;
+
+    if (MOT_HEADER.version == 78 || MOT_HEADER.version == 458) //40 bytes RE2, 20 bytes RE3
+    { 
+        uint32 frameIndOffs <format=hex>;
+        uint32 frameDataOffs <format=hex>;
+        uint32 unpackDataOffs <format=hex>;
+    } else {
+        uint32 frameRate;
+        float  maxFrame;
+        uint64 frameIndOffs <format=hex>;
+        uint64 frameDataOffs <format=hex>;
+        uint64 unpackDataOffs <format=hex>;    
+    }
+
+    local ubyte cmprssn <name="Track compression type"> = flags >> 20;
+    local uint keyFrameDataType <format=hex> = flags & 0xF00000;
+    local uint compression <format=hex> = flags & 0xFF000;
+    local uint unkFlag <format=hex> = flags & 0xFFF;
+    
+};
+
+typedef struct framedatatrns (uint32 keyCount, uint32 flags, uint64 frameDataOffs, uint64 unpackDataOffs, uint64 frameIndOffs) {
+    if (frameIndOffs > 0) {
+        FSeek(frameIndOffs);
+        keys KEYS(keyCount, flags, frameDataOffs);
+    }
+    if (unpackDataOffs > start){
+        FSeek(unpackDataOffs);
+        float unpackData[8];
+        pos2 = FTell();
+    }
+    FSeek(frameDataOffs);
+    struct (uint32 keyCount, uint32 flags) {
+        for (frame = 0; frame < keyCount; frame++){
+            struct (uint32 flags) {
+                if (exists(KEYS)) local int Time = KEYS.frameIndex[frame];
+                switch (flags & 0xFF000)
+                {
+                    case 0x00000: //LoadVector3sFull
+                        VectorFull TranslationX, TranslationZ, TranslationY;
+                        break;
+    
+                    case 0x20000: 
+                        ushort TranslationData; if (SKIP) break;
+                        if (MOT_HEADER.version == 65 || MOT_HEADER.version == 43) { //LoadVector3s5BitA RE2
+                            local float X = unpackData[0] * (((TranslationData >> 00) & 0x1F) * (1.0f / 0x1F)) + unpackData[4];
+                            local float Y = unpackData[1] * (((TranslationData >> 05) & 0x1F) * (1.0f / 0x1F)) + unpackData[5];
+                            local float Z = unpackData[2] * (((TranslationData >> 10) & 0x1F) * (1.0f / 0x1F)) + unpackData[6];
+                        } else {                        //LoadVector3s5BitB RE3
+                            local float X = unpackData[0] * (((TranslationData >> 00) & 0x1F) * (1.0f / 0x1F)) + unpackData[3];
+                            local float Y = unpackData[1] * (((TranslationData >> 05) & 0x1F) * (1.0f / 0x1F)) + unpackData[4];
+                            local float Z = unpackData[2] * (((TranslationData >> 10) & 0x1F) * (1.0f / 0x1F)) + unpackData[5];
+                        }
+                        break;
+
+                    case 0x34000:                       
+                        if (MOT_HEADER.version == 65) { //LoadScalesXYZ RE2
+                            float X;
+                            local float Y = X;
+                            local float Z = X;
+                            break;
+                        }
+
+                    case 0x30000:                       //LoadVector3s10BitA RE2
+                        if (MOT_HEADER.version == 78) { //LoadVector3s5BitB RE3
+                            ushort TranslationData;  if (SKIP) break;
+                            local float X = unpackData[0] * (((TranslationData >> 00) & 0x1F) * (1.0f / 0x1F)) + unpackData[3];
+                            local float Y = unpackData[1] * (((TranslationData >> 05) & 0x1F) * (1.0f / 0x1F)) + unpackData[4];
+                            local float Z = unpackData[2] * (((TranslationData >> 10) & 0x1F) * (1.0f / 0x1F)) + unpackData[5];
+                            break;
+                        }
+                    case 0x40000: 
+                        uint32 TranslationData; if (SKIP) break;
+                        if (MOT_HEADER.version == 65 || MOT_HEADER.version == 43) { //LoadVector3s10BitA RE2
+                            local float X = unpackData[0] * (((TranslationData >> 00) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[4];
+                            local float Y = unpackData[1] * (((TranslationData >> 10) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[5];
+                            local float Z = unpackData[2] * (((TranslationData >> 20) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[6];
+                        } else {                        //LoadVector3s10BitB RE3
+                            local float X = unpackData[0] * (((TranslationData >> 00) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[3];
+                            local float Y = unpackData[1] * (((TranslationData >> 10) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[4];
+                            local float Z = unpackData[2] * (((TranslationData >> 20) & 0x3FF) * (1.0f / 0x3FF)) + unpackData[5];
+                        }
+                        break;
+    
+                    case 0x70000:                       //LoadVector3s21BitA  RE2
+                        uint64 TranslationData; if (SKIP) break;
+                        local float X = unpackData[0] * (((TranslationData >> 00) & 0x1FFFFF) / 2097151.0f) + unpackData[4];
+                        local float Y = unpackData[1] * (((TranslationData >> 21) & 0x1FFFFF) / 2097151.0f) + unpackData[5];
+                        local float Z = unpackData[2] * (((TranslationData >> 42) & 0x1FFFFF) / 2097151.0f) + unpackData[6];
+                        break;
+    
+                    case 0x80000:                       //LoadVector3s21BitB  RE3
+                        uint64 TranslationData; if (SKIP) break;
+                        local float X = unpackData[0] * (((TranslationData >> 00) & 0x1FFFFF) / 2097151.0f) + unpackData[3];
+                        local float Y = unpackData[1] * (((TranslationData >> 21) & 0x1FFFFF) / 2097151.0f) + unpackData[4];
+                        local float Z = unpackData[2] * (((TranslationData >> 42) & 0x1FFFFF) / 2097151.0f) + unpackData[5];
+                        break;
+    
+                    case 0x31000:                       //LoadVector3sXAxis RE2
+                    case 0x41000:                       // RE3
+                        float X;
+                        local float Y = unpackData[1];
+                        local float Z = unpackData[2];
+                        break;
+    
+                    case 0x32000:                       //LoadVector3sYAxis RE2
+                    case 0x42000:                       // RE3
+                        local float X = unpackData[0];
+                        float Y;
+                        local float Z = unpackData[2];
+                        break;
+    
+                    case 0x33000:                       //LoadVector3sZAxis RE2
+                    case 0x43000:                       // RE3
+                        local float X = unpackData[0];
+                        local float Y = unpackData[1];
+                        float Z;
+                        break;
+    
+                    case 0x21000:                       //LoadVector3sXAxis16Bit
+                        ushort TranslationData; if (SKIP) break;
+                        local float X = unpackData[0] * (TranslationData / 65535.0f) + unpackData[1];
+                        local float Y = unpackData[2];
+                        local float Z = unpackData[3];
+                        break;
+    
+                    case 0x22000:                       //LoadVector3sYAxis16Bit
+                        ushort TranslationData; if (SKIP) break;
+                        local float X = unpackData[1];
+                        local float Y = unpackData[0] * (TranslationData / 65535.0f) + unpackData[2];
+                        local float Z = unpackData[3];
+                        break;
+    
+                    case 0x23000:                       //LoadVector3sZAxis16Bit
+                        ushort TranslationData; if (SKIP) break;
+                        local float X = unpackData[1];
+                        local float Y = unpackData[2];
+                        local float Z = unpackData[0] * (TranslationData / 65535.0f) + unpackData[3];
+                        break;
+    
+                    case 0x24000:                       //LoadVector3sXYZAxis16Bit RE3
+                        ushort TranslationData; if (SKIP) break;
+                        local float X, Y, Z = unpackData[0] * (TranslationData / 65535.0f) + unpackData[3];
+                        break;
+                    
+                    case 0x44000:                       //LoadVector3sXYZAxis RE3
+                        float TranslationData;
+                        local float X, Y, Z = TranslationData;
+                        break;
+    
+                    default:
+                        Printf("Unknown Translation Type: %x at FTell %d\n", (flags & 0xFF000), FTell());
+                }
+            } Frame (flags);
+        }
+    } Frames (keyCount, flags);
+    if (unpackDataOffs > start) FSeek(pos2);
+};
+
+float wRot () {
+    local float RotationW = 1.0f - (RotationX * RotationX + RotationY * RotationY + RotationZ * RotationZ);
+    if (RotationW > 0.0f) RotationW = (float)Sqrt(RotationW);
+    else RotationW = 0.0f;
+    return RotationW;
+}
+
+typedef struct framedatarot (uint32 keyCount, uint32 flags, uint64 frameDataOffs, uint64 unpackDataOffs, uint64 frameIndOffs) {
+    if (frameIndOffs > 0) {
+        FSeek(frameIndOffs);
+        keys KEYS(keyCount, flags, frameDataOffs);
+    }
+    if (unpackDataOffs > start) {
+        FSeek(unpackDataOffs);
+        float MaxUnpackX, MaxUnpackY, MaxUnpackZ, MaxUnpackW;
+		if (FTell() + 16 > FileSize()) {
+			local float MinUnpackX, MinUnpackY, MinUnpackZ, MinUnpackW;
+		} else {
+			float MinUnpackX; //todo: fix this
+			float MinUnpackY;
+			float MinUnpackZ;
+			float MinUnpackW;
+		}
+        pos2 = FTell();
+    }
+
+    FSeek(frameDataOffs);
+    struct (uint32 keyCount, uint32 flags) {
+        for (frame = 0; frame < keyCount; frame++){
+            struct (uint32 flags) {
+                if (exists(KEYS)) local int Time = KEYS.frameIndex[frame];
+                switch (flags & 0xFF000)
+                {
+                    case 0x00000:                       //LoadQuaternionsFull
+                        float RotationX, RotationY, RotationZ, RotationW;
+                        break;
+    
+                    case 0xB0000:                       //LoadQuaternions3Component
+                    case 0xC0000: 
+                        float RotationX;
+                        float RotationY;
+                        float RotationZ; if (SKIP) break;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x20000:                       //LoadQuaternions5Bit RE3
+                        ushort RotationData; if (SKIP) break;
+                        local float RotationX = (MaxUnpackX * ((RotationData >> 00) & 0x1F) * (1.0f / 0x1F)) + MinUnpackX;
+                        local float RotationY = (MaxUnpackY * ((RotationData >> 05) & 0x1F) * (1.0f / 0x1F)) + MinUnpackY;
+                        local float RotationZ = (MaxUnpackZ * ((RotationData >> 10) & 0x1F) * (1.0f / 0x1F)) + MinUnpackZ;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x21000:                       //LoadQuaternionsXAxis16Bit
+                        ushort RotationData; if (SKIP) break;
+                        local float RotationX = MaxUnpackX * (RotationData / 65535.0f) + MinUnpackX;
+                        local float RotationY = 0.0f;
+                        local float RotationZ = 0.0f;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x22000:                       //LoadQuaternionsYAxis16Bit
+                        ushort RotationData; if (SKIP) break;
+                        local float RotationX = 0.0f;
+                        local float RotationY = MaxUnpackY * (RotationData / 65535.0f) + MinUnpackY;
+                        local float RotationZ = 0.0f;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x23000:                       //LoadQuaternionsZAxis16Bit
+                        ushort RotationData; if (SKIP) break;
+                        local float RotationX = 0.0f;
+                        local float RotationY = 0.0f;
+                        local float RotationZ = MaxUnpackZ * (RotationData / 65535.0f) + MinUnpackZ;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x30000:                       //LoadQuaternions10Bit RE2
+                        if (MOT_HEADER.version == 78) { //LoadQuaternions8Bit RE3 
+                            ubyte RotationDataX, RotationDataY, RotationDataZ; if (SKIP) break;
+                            local float RotationX = (MaxUnpackX * (RotationDataX * 0.000015259022f)) + MinUnpackX;
+                            local float RotationY = (MaxUnpackY * (RotationDataY * 0.000015259022f)) + MinUnpackY;
+                            local float RotationZ = (MaxUnpackZ * (RotationDataZ * 0.000015259022f)) + MinUnpackZ;
+                            local float RotationW = wRot();
+                            break;
+                        }
+                    case 0x40000:                       //LoadQuaternions10Bit RE3
+                        uint32 RotationData; if (SKIP) break;
+                        local float RotationX = (MaxUnpackX * ((RotationData >> 00) & 0x3FF) / 1023.0f) + MinUnpackX;
+                        local float RotationY = (MaxUnpackY * ((RotationData >> 10) & 0x3FF) / 1023.0f) + MinUnpackY;
+                        local float RotationZ = (MaxUnpackZ * ((RotationData >> 20) & 0x3FF) / 1023.0f) + MinUnpackZ;
+                        local float RotationW = wRot();
+                        break;
+                        
+                    case 0x31000:                       //LoadQuaternionsXAxis
+                    case 0x41000:
+                        float RotationX;
+                        local float RotationY = 0.0f;
+                        local float RotationZ = 0.0f; if (SKIP) break;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x32000:                       //LoadQuaternionsYAxis
+                    case 0x42000:
+                        local float RotationX = 0.0f;
+                        float RotationY;
+                        local float RotationZ = 0.0f; if (SKIP) break;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x33000:                       //LoadQuaternionsZAxis
+                    case 0x43000:
+                        local float RotationX = 0.0f;
+                        local float RotationY = 0.0f;
+                        float RotationZ; if (SKIP) break;
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x50000:                       //LoadQuaternions16Bit RE2
+                        if (MOT_HEADER.version == 78) { //LoadQuaternions13Bit RE3    
+                            uint64 RotationData : 40; FSkip(-3); if (SKIP) break;
+                            local float RotationX = (MaxUnpackX * ((RotationData >> 00) & 0x1FFF) * 0.00012208521f) + MinUnpackX;
+                            local float RotationY = (MaxUnpackY * ((RotationData >> 13) & 0x1FFF) * 0.00012208521f) + MinUnpackY;
+                            local float RotationZ = (MaxUnpackZ * ((RotationData >> 26) & 0x1FFF) * 0.00012208521f) + MinUnpackZ;
+                            local float RotationW = wRot();
+                            break;
+                        }
+                    case 0x60000:                       //LoadQuaternions16Bit RE3
+                        ushort RotationDataX, RotationDataY, RotationDataZ; if (SKIP) break;
+                        local float RotationX = (MaxUnpackX * (RotationDataX / 65535.0f) + MinUnpackX);
+                        local float RotationY = (MaxUnpackY * (RotationDataY / 65535.0f) + MinUnpackY);
+                        local float RotationZ = (MaxUnpackZ * (RotationDataZ / 65535.0f) + MinUnpackZ);
+                        local float RotationW = wRot();
+                        break;
+    
+                    case 0x70000:                       //LoadQuaternions21Bit RE2
+                        if (MOT_HEADER.version == 78) { //LoadQuaternions18Bit RE3
+                            uint64 RotationData : 56; FSkip(-1); if (SKIP) break;
+                            local float RotationX = (MaxUnpackX * ((RotationData >> 00) & 0x1FFF) * 0.00012208521f) + MinUnpackX;
+                            local float RotationY = (MaxUnpackY * ((RotationData >> 13) & 0x1FFF) * 0.00012208521f) + MinUnpackY;
+                            local float RotationZ = (MaxUnpackZ * ((RotationData >> 26) & 0x1FFF) * 0.00012208521f) + MinUnpackZ;
+                            local float RotationW = wRot();
+                            break;
+                        }
+                    case 0x80000:                       //LoadQuaternions21Bit RE3
+                        uint64 RotationData; if (SKIP) break;
+                        local float RotationX = (MaxUnpackX * ((RotationData >> 00) & 0x1FFFFF) / 2097151.0f) + MinUnpackX;
+                        local float RotationY = (MaxUnpackY * ((RotationData >> 21) & 0x1FFFFF) / 2097151.0f) + MinUnpackY;
+                        local float RotationZ = (MaxUnpackZ * ((RotationData >> 42) & 0x1FFFFF) / 2097151.0f) + MinUnpackZ;
+                        local float RotationW = wRot();
+                        break;
+    
+                    default:
+                        Printf("Unknown Rotation Type: %x at FTell %d\n", (flags & 0xFF000), FTell());
+                }
+            } Frame (flags);
+        }
+    } Frames (keyCount, flags);
+    if (unpackDataOffs > start) FSeek(pos2);
+};
+
+typedef struct {
+    uint64 Address <format=hex>;
+    local string motName <hidden=true> = ReadWString(Address + 116);
+    if (Address == 0) motName = "";
+} POINTERS <read=ReadPOINTERS>;
+    string ReadPOINTERS (POINTERS &input) { return input.motName; }
+
+typedef struct motHdr {
+    uint    version;
+    char    ID[4]; 
+    uint32  ukn00;
+    uint32  motSize;
+    uint64  offsToBoneHdrOffs <format=hex>;       //BoneBaseDataPointer
+    uint64  boneClipHdrOffs <format=hex>; FSkip(8);   //BoneDataPointer
+	if (MOT_HEADER.version == 458) 
+		FSkip(8);
+    uint64  Offs1 <format=hex>;
+    uint64  clipFileOffset <format=hex>; FSkip(16);
+    uint64  Offs2 <format=hex, name="Extra Data Offset">;
+    uint64  namesOffs <format=hex>;         //namePointer
+    float   frameCount;                     //frameCount
+    float   blending <comment="Set to 0 to enable repeating">; 
+    float   uknFloat;
+    float   uknFloat;
+    ushort  boneCount;
+    ushort  boneClipCount;
+    ubyte   uknPointer2Count;
+    ubyte   uknPointer3Count;
+    ushort  FrameRate;
+    ushort  uknPointerCount;
+    ushort  uknShort; 
+	FSeek(namesOffs+start);
+    wstring MOT_NAME <open=suppress>; 
+};
+
+typedef struct  {
+    uint64 boneNameOffs <format=hex>;
+    local int position <hidden=true> = FTell() ;
+    FSeek(boneNameOffs + start);
+    wstring boneName <open=suppress>;
+    FSeek(position);
+    uint64 parentOffs <format=hex>;
+    uint64 childOffs <format=hex>;
+    uint64 nextSiblingOffs <format=hex>;
+    float  translation[4] <open=suppress>;
+    float  quaternion[4] <open=suppress>;
+    uint32 Index;
+    uint   boneHash;    //MurMur3
+    uint64 padding;
+} bnHdr <read=ReadBNHDR>;
+    string ReadBNHDR ( bnHdr &input ) { return input.boneName; }
+
+typedef struct {
+    wstring String <open=suppress>;
+} BONENAME <read=ReadBONENAME>;
+    string ReadBONENAME (BONENAME &input) { return input.String; }
+
+typedef struct {
+    if (MOT_HEADER.version == 65)
+    {
+        ushort    boneIndex;
+        trckFlg_t trackFlags; // flags for type: translations ?+    rotations xor scales
+        uint32      boneHash <format=hex>;  // MurMur3
+        float     uknFloat;  // always 1.0?
+        uint32     padding;
+        uint64 trackHdrOffs <format=hex>; //keysPointer
+    }
+    else
+    {
+        ushort    boneIndex;
+        trckFlg_t trackFlags;
+        uint      boneHash <format=hex>;
+        if  (MOT_HEADER.version == 43)
+            uint64 trackHdrOffs <format=hex>; //keysPointer
+        else 
+            uint32 trackHdrOffs <format=hex>;
+    }
+
+    local string name <hidden=true> = "";
+    if (exists(BONE_HEADERS.BONE_HEADER[boneIndex].boneName))
+        name = BONE_HEADERS.BONE_HEADER[boneIndex].boneName; 
+    else if (exists(MOT[boneHeadersIdx].BONE_HEADERS.BONE_HEADER[boneIndex].boneName))
+        name = MOT[boneHeadersIdx].BONE_HEADERS.BONE_HEADER[boneIndex].boneName;
+} BONECLIPHEADER <read=ReadBONECLIPHEADER>;
+    string ReadBONECLIPHEADER (BONECLIPHEADER &input) { return input.name; }
+
+typedef struct {
+    local uint64 TranslationFlagOff <hidden=true> = FTell();
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & TRANSLATION)
+        track trnsltn <name="Translation">;
+
+    local uint64 RotationFlagOff <hidden=true> = FTell();
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & ROTATION)
+        track rotation <name="Rotation">;
+
+    local uint64 ScaleFlagOff <hidden=true> = FTell();
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & SCALE)
+        track scale <name="Scale">;
+
+    pos3 = FTell();
+
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & TRANSLATION && trnsltn.flags >= 0){ FSeek(TranslationFlagOff); LocFrameType_t TranslationType;}
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & ROTATION && rotation.flags >= 0){ FSeek(RotationFlagOff); RotFrameType_t RotationType;}
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & SCALE && scale.flags >= 0){ FSeek(ScaleFlagOff); ScaleFrameType_t ScaleType;}
+
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & TRANSLATION){
+        if (trnsltn.frameIndOffs > 0) FSeek(trnsltn.frameIndOffs+start);
+        else FSeek(trnsltn.frameDataOffs+start);
+        framedatatrns Frames(trnsltn.keyCount, trnsltn.flags, trnsltn.frameDataOffs+start, trnsltn.unpackDataOffs+start, trnsltn.frameIndOffs+start)<name="Frame Data: Translation">;
+    }
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & ROTATION){
+        if (rotation.frameIndOffs > 0) FSeek(rotation.frameIndOffs+start);
+        else FSeek(rotation.frameDataOffs+start);
+        framedatarot Frames(rotation.keyCount, rotation.flags, rotation.frameDataOffs+start, rotation.unpackDataOffs+start, rotation.frameIndOffs+start)<name="Frame Data: Rotation">;
+    }
+    if (BONE_CLIP_HEADERS.bnClipHdr[j].trackFlags & SCALE){
+        if (scale.frameIndOffs > 0) FSeek(scale.frameIndOffs+start);
+        else FSeek(scale.frameDataOffs+start);
+        framedatatrns Frames(scale.keyCount, scale.flags, scale.frameDataOffs+start, scale.unpackDataOffs+start, scale.frameIndOffs+start)<name="Frame Data: Scale">;
+    }
+    FSeek(pos3);
+    local int boneIdx<name="Bone index"> = BONE_CLIP_HEADERS.bnClipHdr[j].boneIndex;
+    local string name <hidden=true> = "";
+    
+    if (exists(BONE_HEADERS.BONE_HEADER[boneIdx].boneName))
+        name = BONE_HEADERS.BONE_HEADER[boneIdx].boneName; 
+    else if (exists(MOT[boneHeadersIdx].BONE_HEADERS.BONE_HEADER[boneIdx].boneName))
+        name = MOT[boneHeadersIdx].BONE_HEADERS.BONE_HEADER[boneIdx].boneName;
+
+} TRACKS <name="TRACKS", read=ReadTRACKS>;
+    string ReadTRACKS (TRACKS &input) { return input.name; }
+
+//main mot struct
+typedef struct {
+    start = FTell();
+    motHdr MOT_HEADER <open=false>;
+    if (!exists(HEADER)) {
+        struct { local int version = 99; } HEADER <hidden=true>; //false header
+        if (MOT_HEADER.version == 43) HEADER.version = 60;
+        else if (MOT_HEADER.version == 65) HEADER.version = 85;
+        else if (MOT_HEADER.version == 78) HEADER.version = 99;
+    }
+    if (!SKIPALL) {
+        if ( MOT_HEADER.offsToBoneHdrOffs+start+16 < FileSize()) { 
+            FSeek(MOT_HEADER.offsToBoneHdrOffs+start);
+            struct {
+                uint64  boneHdrOffs <format=hex>;
+                uint64  boneHdrCount;
+                if (boneHdrCount <= 1000) {
+                    bnHdr BONE_HEADER[boneHdrCount] <optimize=false>;
+                    BONENAME BONE_NAME[BONE_HEADERS.boneHdrCount] <optimize=false, hidden=true>;
+                }
+            } BONE_HEADERS;
+        }
+    
+        FSeek(MOT_HEADER.boneClipHdrOffs+start);
+        struct {
+            BONECLIPHEADER bnClipHdr[MOT_HEADER.boneClipCount] <optimize=false, name="BONE CLIP HEADER">;
+        } BONE_CLIP_HEADERS <name="BONE CLIP HEADER">;
+    
+        skipToNextLine();
+        struct {
+            for (j = 0; j < MOT_HEADER.boneClipCount; j++)
+            {
+                FSeek(BONE_CLIP_HEADERS.bnClipHdr[j].trackHdrOffs+start);
+                TRACKS tracks;
+            }
+        } clipTracks <name="CLIP TRACKS">;
+        if ( MOT_HEADER.Offs1 > 0) {
+            FSeek(MOT_HEADER.Offs1 + start);
+            wstring JMAP;
+        }
+    }
+    if ( NOCLIP == FALSE && MOT_HEADER.clipFileOffset > 0 ) { //&& MOT_HEADER.version != 43
+        FSeek(MOT_HEADER.clipFileOffset + start);
+        clip CLIP;
+    }
+
+    //find end of mot
+    if (bIsMotFile) 
+        FSeek( FileSize() );
+    else if (i == numOffs-1 && HEADER.Pointers[i].Address < HEADER.colOffs)
+        FSeek(HEADER.colOffs);
+    else findEndOfMot();
+
+} mot <read=ReadMOT>; //size=SizeMOT,
+    string ReadMOT ( mot &input ) { 
+		if (ReadUInt(startof(input)) == 458) {
+			return ReadWString(startof(input) + ReadUInt64(startof(input) + 88)); 
+		} else return ReadWString(startof(input) + 116); 
+	} 
+	uint SizeMOT ( mot &input ) { 
+		local uint posStart = FTell();
+		local uint finalPosition = startof(input) + 16;
+		if (ReadUInt64(startof(input) + 72))
+			finalPosition = ReadUInt64(startof(input) + 72) + startof(input);
+		FSeek(finalPosition);
+    	while (ReadUInt(FTell()+4) != 544501613) {	
+			if (FTell()+18 < FileSize()) {		
+				if ((exists(HEADER) && FTell() >= HEADER.colOffs) && startof(input) < HEADER.colOffs) {
+					FSeek(HEADER.colOffs);
+					break;
+				}
+				if (FTell()+16 >= FileSize()) {
+					FSeek(FileSize());
+            		break; 
+				}
+				FSkip(16);
+			} else { FSeek(FileSize()); break;};
+    	}
+		finalPosition = FTell();
+		FSeek(posStart);
+		return finalPosition - startof(input);
+		//return getMotSize(startof(input)); 
+	}
+
+typedef struct  {
+    if (HEADER.version != 60) FSkip(8);
+    ushort motNumber; 
+    ushort Switch <hidden=false>;
+    if (ReadUInt(FTell()) != 0) uint32 ukn; else FSkip(4);
+    if (HEADER.version != 60) FSkip(8); else FSkip(4);
+    local uint32 index <hidden=true> = i ;
+} unknownType <read=ReadUnknownType>;
+    string ReadUnknownType ( unknownType &input ) { return HEADER.Pointers[input.index].motName; }
+
+/* ---FUNCTIONS---- */
+int isInArr(int64 val, int64 arr[]){
+    local int a;
+
+    for(a = 0; a < sizeof(arr)/8; a++)
+    {
+        if(arr[a] == val)
+            return true;
+    }
+    return false;
+}
+
+/* ----START---- */
+ReadBytes(bytes, 4, 4);
+if (bytes == "mot ")
+{
+    bIsMotFile = 1;
+    mot MOT;
+}
+else if (NOCLIP == FALSE && ReadUInt(FTell()) == 1346980931)
+{
+    struct { local int version = 99; } HEADER <hidden=true>; 
+    CLIP_ENTRY Clip;
+}
+else 
+{
+    struct {
+        uint32  version;
+        char    ID[4];
+        uint64  padding;
+        uint64  pointersOffs <format=hex>; // AssetsPointer in Tyrant
+        uint64  colOffs <format=hex>; // UnkPointer
+        uint64  motListNameOffs <format=hex>; //NamePointer
+        if (version != 60) {
+            uint64  padding; //UnkPointer01
+        }
+        uint32  numOffs; FSeek(motListNameOffs); //AssetCount
+        wstring motListName <open=suppress>; FSeek(pointersOffs);
+        POINTERS Pointers[numOffs] <open=true, optimize=false>;
+    } HEADER;
+
+    local int64 tmpArr[HEADER.numOffs] <format=hex, hidden=true>, \
+                isUnique[HEADER.numOffs] <format=hex, hidden=true>;
+
+    //count offsets without nulls and duplicates 
+    for (i = 0; i < HEADER.numOffs; i++)
+    {
+        if (HEADER.Pointers[i].Address && !isInArr(HEADER.Pointers[i].Address, tmpArr))
+        {
+            numOffs++;
+            isUnique[i] = 1;
+        }
+        tmpArr[i] = HEADER.Pointers[i].Address;
+    }
+
+    //fill the array with unique non-zero offsets
+    local int64 offs[numOffs] <format=hex, hidden=true>;
+    for (i = 0; i < HEADER.numOffs; i++)
+    {
+        if (HEADER.Pointers[i].Address && isUnique[i])
+        {
+            offs[j] = HEADER.Pointers[i].Address;
+            j++;
+        }
+    }
+
+    motCounter = 0;
+    for (i = 0; i < numOffs; i++)
+    {
+        FSeek(offs[i]);
+        Printf("Mot Index(%ld), offset: %lX \n", i, offs[i]);
+        if (ReadByte() == 43 || ReadByte() == 65 || ReadByte() == 78 || ReadUInt() == 458) {
+            mot MOT;
+            FSeek( i < numOffs-1 ? offs[i+1] : FileSize());
+            motCounter++;
+        }    
+        else if (ReadByte() == 4 || ReadByte() == 5)
+        {
+            struct {
+                FSeek( i < numOffs-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
+            } MOT_TREE;
+        }
+        else if (ReadByte() == 7)
+        {
+            struct {
+                FSeek( i < numOffs-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
+            } MCAM;
+        }
+    }
+
+    FSeek(HEADER.colOffs);
+    struct {
+        for (i = 0; i < HEADER.numOffs; i++){
+            unknownType MOT_INDEX;
+        }
+    } MOT_INDICES;
+
+    if (FTell() < FileSize() - 8 && ReadUInt64(FTell()) == FTell() + 8) {
+        start = 0;
+        bEndOfClip = TRUE;
+        clip END_CLIP;
+    }
+}
+Printf("Number of valid entries: %d\n", numOffs);
