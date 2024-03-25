@@ -1,11 +1,22 @@
 import json
+import os
 
 
 from BinaryStream import *
 
 
-motlist_file_path = "D:/WS/Modding/DMC/re_chunk_000.pak.patch_005/natives/x64/animation/player/pl0800/motlist/pl0800_yamato.motlist.85"
+CURRENT_DIR_PATH = os.path.dirname(__file__)
+DMC_DIR = os.path.abspath(os.path.join(CURRENT_DIR_PATH, "../../DMC"))
 
+motlist_file_path = os.path.join(DMC_DIR, "re_chunk_000.pak.patch_005/natives/x64/animation/player/pl0800/motlist/pl0800_yamato.motlist.85")
+
+
+def ReadUByte(bs: BinaryStream, readAt):
+    pos = bs.tell()
+    bs.seek(readAt)
+    value = bs.read_uint8()
+    bs.seek(pos)
+    return value
 
 def ReadUInt64(bs: BinaryStream, readAt):
     pos = bs.tell()
@@ -22,13 +33,20 @@ def ReadUInt(bs: BinaryStream, readAt):
     return value
 
 
-def readUShortAt(bs: BinaryStream, tell):
+def ReadUShort(bs: BinaryStream, tell):
     pos = bs.tell()
     bs.seek(tell)
     out = bs.read_uint16()
     bs.seek(pos)
     return out
 
+def ReadString(bs: BinaryStream):
+    resultString = ""
+    c = bs.read_uint8()
+    while c > 0:
+        resultString += chr(c)
+        c = bs.read_uint8()
+    return resultString
 
 def ReadUnicodeString(bs: BinaryStream):
     numZeroes = 0
@@ -48,7 +66,7 @@ def readUnicodeStringAt(bs: BinaryStream, tell):
     string = []
     pos = bs.tell()
     bs.seek(tell)
-    while readUShortAt(bs, bs.tell()) != 0:
+    while ReadUShort(bs, bs.tell()) != 0:
         string.append(bs.read_uint8())
         bs.seek(1, 1)
     bs.seek(pos)
@@ -67,6 +85,7 @@ class MotFile:
         self.anim = None
         self.frameCount = 0
         self.motlist = motlist
+        self.HEADER_version = motlist.version
         self.bones = []
         self.version = bs.read_uint32()
         bs.seek(12)
@@ -89,7 +108,7 @@ class MotFile:
         nameOffs = bs.readUInt64()
         self.name = readUnicodeStringAt(bs, nameOffs)
         self.frameCount = bs.readFloat()
-        self.name += " (" + str(int(self.frameCount)) + " frames)"
+        # self.name += " (" + str(int(self.frameCount)) + " frames)"
         self.blending = bs.readFloat()
         self.uknFloat0 = bs.readFloat()
         self.uknFloat0 = bs.readFloat()
@@ -109,6 +128,7 @@ class MotFile:
         bs = self.bs
         bs.seek(self.clipFileOffset)
         clipOffset = []
+        print("clipCount: %s"%(self.clipCount))
         for i in range(self.clipCount):
             clipOffset.append(bs.read_uint64())
         if clipOffset[0] > 0:
@@ -116,14 +136,15 @@ class MotFile:
         else:
             bs.skip(16)
         clips = []
-        for i in range(self.clipCount):
+        for clipIdx in range(self.clipCount):
+            print("clipIdx: %s"%(clipIdx))
             if ReadUInt(bs, bs.tell()) !=1346980931 :
                 A1 = bs.read_uint64()
                 clipHdrOffs = bs.read_uint64()
                 Offs = bs.read_uint64()
                 D2 = bs.read_uint32()
                 numFloats = bs.read_uint32()
-                if self.version != 60 :
+                if self.HEADER_version != 60 :
                     F1 = bs.read_uint32()
                 while ReadUInt(bs, bs.tell()) !=1346980931:
                     bs.skip(1)
@@ -134,7 +155,7 @@ class MotFile:
             numStrings = bs.read_uint32()
             numData = bs.read_uint32()
             hash = None
-            if self.version != 99 :
+            if self.HEADER_version != 99 :
                 hash = bs.read_uint64()
                 hash = bs.read_uint64()
             clipDataOffs = bs.read_uint64()
@@ -142,28 +163,70 @@ class MotFile:
             fnDataOffs = bs.read_uint64()
             namesOffs = bs.read_uint64()
             namesOffs2 = None
-            if self.version != 85 :
+            if self.HEADER_version == 85 :
                 namesOffs2 = bs.read_uint64()
             namesOffsExtra = []
-            if self.version == 60 :
+            if self.HEADER_version == 60 :
                 for ni in range(5):
-                    namesOffsExtra[ni] = bs.read_uint64()
+                    namesOffsExtra.append(bs.read_uint64())
             else:
                 for ni in range(4):
-                    namesOffsExtra[ni] = bs.read_uint64()
+                    namesOffsExtra.append(bs.read_uint64())
+            print(namesOffsExtra)
             unicodeNamesOffs = bs.read_uint64()
             endClipStructsOffs = bs.read_uint64()
+            print("clipIdx: %s,  unicodeNamesOffs: %s,  endClipStructsOffs: %s"%(clipIdx, unicodeNamesOffs, endClipStructsOffs))
             bs.seek(clipDataOffs)
             
-            # Function Data
-            bs.seek(fnDataOffs)
-            if numData>0:
-                
+            Type = 13
 
+            # Function Data
+            if numData > 0 :
+                bs.seek(fnDataOffs)
+                if self.HEADER_version == 85:
+                    for cfdi in range(numData):
+                        # if(Type == 6 and (exists(parentof(this).Data[1]))):
+                        #     bs.skip(4)
+                        Value = bs.read_float32()
+                        bs.skip(4)
+                        SubDataType = bs.read_uint64()
+                        if(SubDataType == 2):
+                            bs.skip(4)
+                            Rate = bs.read_float32()
+                        elif(((SubDataType == 3) or (SubDataType == 1))):
+                            ID = bs.read_int32()
+                            if(Type != 6):
+                                pos2 = bs.tell()
+                                if(namesOffsExtra[1] + ID < bs.get_buffer_length()):
+                                    bs.seek(namesOffsExtra[1] + ID)
+                                    if(ID < bs.get_buffer_length() and ID > 1 and ReadUByte(bs, bs.tell()) != 0 and ReadUByte(bs, bs.tell()-1)==0 and len(ReadString(bs))>2):
+                                        IDName_FnNames = ReadString(bs)
+                                        print("IDName_FnNames:", IDName_FnNames)
+                                    bs.seek(unicodeNamesOffs + ID*2)
+                                    if(ID < bs.get_buffer_length() and ID > 1 and ReadUByte(bs, bs.tell()) != 0 and ReadUByte(bs, bs.tell()-2)==0):
+                                        IDName_clipNames = readUnicodeStringAt(bs, bs.tell())
+                                        print("IDName_clipNames:",IDName_clipNames)
+                                bs.seek(pos2 + 4)
+                        elif(SubDataType == 5):
+                            Angle = bs.read_float64()
+                            AngleID = bs.read_int32()
+                            bs.skip(-4)
+                        else:
+                            UnkDataValue = bs.read_uint64()
+                            bs.skip(4)
+                        bs.skip(16)
+                    pass
+                else:
+                    pass
+
+
+            print("clipIdx: %s,  endClipStructsOffs: %s"%(clipIdx, endClipStructsOffs))
             bs.seek(endClipStructsOffs)
             while (ReadUInt64(bs, bs.tell()) == 0):
                 bs.skip(8)
             nextStructOffs = bs.read_uint64()
+            
+            print("clipIdx: %s,  nextStructOffs: %s"%(clipIdx, nextStructOffs))
             bs.seek(nextStructOffs)
 
     # def checkIfSyncMot(self, other):
@@ -505,9 +568,10 @@ class MotListFile:
                 bs.seek(motAddress)
                 mot = MotFile(bs.read(bs.get_buffer_length() - bs.tell()), self, motAddress)
                 self.mots.append(mot)
-                print(mot.name)
-                if mot.name == "pl0800_YMT_Walk_Loop (64 frames)":
+                # print(mot.name)
+                if mot.name == "pl0800_YMT_ComboA_3":
                     mot.export()
+                    pass
 
 def exportMotlistFile(path):
     meshBuffer = None
