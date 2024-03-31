@@ -17,7 +17,7 @@ local int SKIP <hidden=true> = FALSE;
 local int SKIPALL <hidden=true> = FALSE; 
 local int NOCLIP <hidden=true> = FALSE;
 
-local int64 i <hidden=true> = 0, numOffs <hidden=true> = 0, bEndOfClip <hidden=true> = FALSE,
+local int64 i <hidden=true> = 0, nMotCount <hidden=true> = 0, bEndOfClip <hidden=true> = FALSE,
             j <hidden=true> = 0, pos <hidden=true>, Type <hidden=true>,
             start <hidden=true>, k <hidden=true> = 0, fnData <hidden=true>,
             frame <hidden=true>, pos2 <hidden=true>, pos3 <hidden=true>,
@@ -75,7 +75,7 @@ void skipToNextLine() {
 }
 
 uint isHighestOffset(uint64 offset) {
-    for (j=0; j<HEADER.numOffs; j++) {
+    for (j=0; j<HEADER.nMotCount; j++) {
         if (HEADER.Pointers[j] > offset)
             return 0;
     }
@@ -83,7 +83,7 @@ uint isHighestOffset(uint64 offset) {
 }
 
 uint isBeforeColOffs(uint64 offset) {
-    for (j=0; j<HEADER.numOffs; j++) {
+    for (j=0; j<HEADER.nMotCount; j++) {
         if (HEADER.Pointers[j] > offset && HEADER.Pointers[j] < HEADER.colOffs)
             return 0;
     }
@@ -1127,7 +1127,7 @@ typedef struct {
     //find end of mot
     if (bIsMotFile) 
         FSeek( FileSize() );
-    else if (i == numOffs-1 && HEADER.Pointers[i].Address < HEADER.colOffs)
+    else if (i == nMotCount-1 && HEADER.Pointers[i].Address < HEADER.colOffs)
         FSeek(HEADER.colOffs);
     else findEndOfMot();
 
@@ -1199,37 +1199,38 @@ else if (NOCLIP == FALSE && ReadUInt(FTell()) == 1346980931)
 else 
 {
     struct {
-        uint32  version;
-        char    ID[4];
-        uint64  padding;
-        uint64  pointersOffs <format=hex>; // AssetsPointer in Tyrant
-        uint64  colOffs <format=hex>; // UnkPointer
-        uint64  motListNameOffs <format=hex>; //NamePointer
+        uint32  version;                            // +0x4
+        char    ID[4];                              // +0x4
+        uint64  padding;                            // +0x8
+        uint64  pointersOffs <format=hex>;          // +0x8 AssetsPointer
+        uint64  colOffs <format=hex>;               // +0x8 UnkPointer
+        uint64  motListNameOffs <format=hex>;       // +0x8 NamePointer
         if (version != 60) {
-            uint64  padding; //UnkPointer01
+            uint64  UnkPointer01;                   // +0x8 UnkPointer01
         }
-        uint32  numOffs; FSeek(motListNameOffs); //AssetCount
+        uint32  nMotCount;                          // +0x4 Mot Count
+        FSeek(motListNameOffs);
         wstring motListName <open=suppress>; FSeek(pointersOffs);
-        POINTERS Pointers[numOffs] <open=true, optimize=false>;
+        POINTERS Pointers[nMotCount] <open=true, optimize=false>;
     } HEADER;
 
-    local int64 tmpArr[HEADER.numOffs] <format=hex, hidden=true>, \
-                isUnique[HEADER.numOffs] <format=hex, hidden=true>;
+    local int64 tmpArr[HEADER.nMotCount] <format=hex, hidden=true>, \
+                isUnique[HEADER.nMotCount] <format=hex, hidden=true>;
 
     //count offsets without nulls and duplicates 
-    for (i = 0; i < HEADER.numOffs; i++)
+    for (i = 0; i < HEADER.nMotCount; i++)
     {
         if (HEADER.Pointers[i].Address && !isInArr(HEADER.Pointers[i].Address, tmpArr))
         {
-            numOffs++;
+            nMotCount++;
             isUnique[i] = 1;
         }
         tmpArr[i] = HEADER.Pointers[i].Address;
     }
 
     //fill the array with unique non-zero offsets
-    local int64 offs[numOffs] <format=hex, hidden=true>;
-    for (i = 0; i < HEADER.numOffs; i++)
+    local int64 offs[nMotCount] <format=hex, hidden=true>;
+    for (i = 0; i < HEADER.nMotCount; i++)
     {
         if (HEADER.Pointers[i].Address && isUnique[i])
         {
@@ -1239,32 +1240,32 @@ else
     }
 
     motCounter = 0;
-    for (i = 0; i < numOffs; i++)
+    for (i = 0; i < nMotCount; i++)
     {
         FSeek(offs[i]);
         Printf("Mot Index(%ld), offset: %lX \n", i, offs[i]);
         if (ReadByte() == 43 || ReadByte() == 65 || ReadByte() == 78 || ReadUInt() == 458) {
             mot MOT;
-            FSeek( i < numOffs-1 ? offs[i+1] : FileSize());
+            FSeek( i < nMotCount-1 ? offs[i+1] : FileSize());
             motCounter++;
         }    
         else if (ReadByte() == 4 || ReadByte() == 5)
         {
             struct {
-                FSeek( i < numOffs-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
+                FSeek( i < nMotCount-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
             } MOT_TREE;
         }
         else if (ReadByte() == 7)
         {
             struct {
-                FSeek( i < numOffs-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
+                FSeek( i < nMotCount-1 ? offs[i+1] : (HEADER.colOffs > 0 ? HEADER.colOffs : FileSize) );
             } MCAM;
         }
     }
 
     FSeek(HEADER.colOffs);
     struct {
-        for (i = 0; i < HEADER.numOffs; i++){
+        for (i = 0; i < HEADER.nMotCount; i++){
             unknownType MOT_INDEX;
         }
     } MOT_INDICES;
@@ -1275,4 +1276,4 @@ else
         clip END_CLIP;
     }
 }
-Printf("Number of valid entries: %d\n", numOffs);
+Printf("Number of valid entries: %d\n", nMotCount);

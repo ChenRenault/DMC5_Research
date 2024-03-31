@@ -1,6 +1,6 @@
 import json
 import os
-
+from termcolor import colored, cprint
 
 from BinaryStream import *
 
@@ -178,36 +178,41 @@ class MotFile:
             print("clipIdx: %s,  unicodeNamesOffs: %s,  endClipStructsOffs: %s"%(clipIdx, unicodeNamesOffs, endClipStructsOffs))
             bs.seek(clipDataOffs)
             
-            Type = 13
+            Type = 6
 
             # Function Data
             if numData > 0 :
                 bs.seek(fnDataOffs)
                 if self.HEADER_version == 85:
                     for cfdi in range(numData):
+                        # cprint("[%s]Function Data %s"%(cfdi, hex(bs.tell() + self.start)), 'green', 'on_red')
                         # if(Type == 6 and (exists(parentof(this).Data[1]))):
                         #     bs.skip(4)
                         Value = bs.read_float32()
+                        print(cfdi, "Value", Value)
                         bs.skip(4)
                         SubDataType = bs.read_uint64()
-                        if(SubDataType == 2):
+                        print(cfdi, "SubDataType", SubDataType)
+                        if (SubDataType == 2):
                             bs.skip(4)
                             Rate = bs.read_float32()
-                        elif(((SubDataType == 3) or (SubDataType == 1))):
+                        elif (((SubDataType == 3) or (SubDataType == 1))):
                             ID = bs.read_int32()
                             if(Type != 6):
                                 pos2 = bs.tell()
                                 if(namesOffsExtra[1] + ID < bs.get_buffer_length()):
                                     bs.seek(namesOffsExtra[1] + ID)
+                                    print(cfdi, "namesOffsExtra[1]:", namesOffsExtra[1])
                                     if(ID < bs.get_buffer_length() and ID > 1 and ReadUByte(bs, bs.tell()) != 0 and ReadUByte(bs, bs.tell()-1)==0 and len(ReadString(bs))>2):
                                         IDName_FnNames = ReadString(bs)
-                                        print("IDName_FnNames:", IDName_FnNames)
+                                        print(cfdi, "IDName_FnNames:", IDName_FnNames)
                                     bs.seek(unicodeNamesOffs + ID*2)
+                                    print(cfdi, "unicodeNamesOffs:", unicodeNamesOffs)
                                     if(ID < bs.get_buffer_length() and ID > 1 and ReadUByte(bs, bs.tell()) != 0 and ReadUByte(bs, bs.tell()-2)==0):
                                         IDName_clipNames = readUnicodeStringAt(bs, bs.tell())
-                                        print("IDName_clipNames:",IDName_clipNames)
+                                        print(cfdi, "IDName_clipNames:", IDName_clipNames)
                                 bs.seek(pos2 + 4)
-                        elif(SubDataType == 5):
+                        elif (SubDataType == 5):
                             Angle = bs.read_float64()
                             AngleID = bs.read_int32()
                             bs.skip(-4)
