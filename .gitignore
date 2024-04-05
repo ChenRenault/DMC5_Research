@@ -1,3 +1,11 @@
 __test_files/
 il2cpp_dump/
 __pycache__
+
+.vs/
+.vscode/
+.idea/
+build/
+build64_all/
+build64/
+cmake-build*
