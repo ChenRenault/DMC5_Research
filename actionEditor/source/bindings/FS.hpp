@@ -1,7 +1,9 @@
 #pragma once
 
-class ScriptState;
+namespace sol {
+    class state;
+}
 
 namespace bindings {
-void open_fs(ScriptState* s);
+void open_fs(sol::state& lua);
 }

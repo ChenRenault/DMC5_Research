@@ -4,7 +4,7 @@ namespace sol {
 }
 
 namespace bindings {
-void open_imgui(sol::state& s);
+void open_imgui(sol::state& lua);
 }
 
 namespace api::imgui {

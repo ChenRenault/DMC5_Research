@@ -3,19 +3,23 @@
 #include <fstream>
 #include <filesystem>
 
-#include "../ScriptRunner.hpp"
-
 #include "FS.hpp"
+
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol/sol.hpp>
 
 namespace fs = std::filesystem;
 
 namespace api::fs {
 namespace detail {
+std::filesystem::path get_persistent_dir(){
+    return std::filesystem::path();
+}
 ::fs::path get_datadir(std::string wanted_subdir = "") {
     std::string modpath{};
 
     modpath.resize(1024, 0);
-    modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
+    // modpath.resize(GetModuleFileName(nullptr, modpath.data(), modpath.size()));
 
     if (!wanted_subdir.empty() && wanted_subdir.find("$") != std::string::npos) {
         if (wanted_subdir.find("$natives") != std::string::npos) {
@@ -27,7 +31,7 @@ namespace detail {
         }
 
         if (wanted_subdir.find("$autorun") != std::string::npos) {
-            auto datadir = REFramework::get_persistent_dir() / "reframework" / "autorun";
+            auto datadir = get_persistent_dir() / "autorun";
 
             ::fs::create_directories(datadir);
 
@@ -37,7 +41,7 @@ namespace detail {
         // todo, other subdirs?
     }
 
-    auto datadir = REFramework::get_persistent_dir() / "reframework" / "data";
+    auto datadir = get_persistent_dir() / "data";
 
     ::fs::create_directories(datadir);
 
@@ -176,8 +180,7 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
     return api::fs::detail::get_datadir(filepath) / corrected_subpath;
 }
 
-void bindings::open_fs(ScriptState* s) {
-    auto& lua = s->lua();
+void bindings::open_fs(sol::state& lua) {
     auto fs = lua.create_table();
 
     fs["glob"] = api::fs::glob;

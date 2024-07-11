@@ -1,7 +1,9 @@
 #pragma once
 
-class ScriptState;
+namespace sol {
+    class state;
+}
 
 namespace bindings {
-void open_json(ScriptState* s);
+void open_json(sol::state& lua);
 }

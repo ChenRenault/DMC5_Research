@@ -2,9 +2,10 @@
 #include <fstream>
 
 #include <json.hpp>
-#include <spdlog/spdlog.h>
+// #include <spdlog/spdlog.h>
 
-#include "../ScriptRunner.hpp"
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol/sol.hpp>
 
 #include "Json.hpp"
 
@@ -97,9 +98,11 @@ sol::object decode_any(sol::this_state l, const json& j) {
         return sol::nil;
     }
 }
-
+std::filesystem::path get_persistent_dir(){
+    return std::filesystem::path();
+}
 fs::path get_datadir() {
-    return REFramework::get_persistent_dir() / "reframework" / "data";
+    return get_persistent_dir() / "data";
 }
 } // namespace detail
 
@@ -134,7 +137,7 @@ sol::object load_file(sol::this_state l, const std::string& filepath) try {
     const auto j = json::parse(std::ifstream{detail::get_datadir() / filepath});
     return detail::decode_any(l, j);
 } catch (const json::exception& e) {
-    spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
+    // spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
     return sol::nil;
 }
 
@@ -161,14 +164,13 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
     f << detail::encode_any(obj).dump(indent);
     return true;
 } catch (const std::exception& e) {
-    spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
+    // spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
     return false;
 }
 
 } // namespace api::json
 
-void bindings::open_json(ScriptState* s) {
-    auto& lua = s->lua();
+void bindings::open_json(sol::state& lua) {
     auto json = lua.create_table();
 
     json["load_string"] = api::json::load_string;

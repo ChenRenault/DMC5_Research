@@ -66,8 +66,9 @@ macro(add_app_executable name)
     find_package(imgui_node_editor REQUIRED)
     find_package(lua REQUIRED)
     find_package(sol2 REQUIRED)
+    find_package(nlohmann_json REQUIRED)
 
-    target_link_libraries(${name} PRIVATE glm imgui imgui_node_editor lua sol2 application)
+    target_link_libraries(${name} PRIVATE glm imgui imgui_node_editor lua nlohmann_json sol2 application)
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
@@ -128,8 +129,12 @@ endmacro()
 add_subdirectory(source/application)
 
 add_app_executable(actionEditor
+    source/bindings/FS.hpp
+    source/bindings/FS.cpp
     source/bindings/Imgui.hpp
     source/bindings/Imgui.cpp
+    source/bindings/Json.hpp
+    source/bindings/Json.cpp
     source/Math.hpp
     source/actionEditor.cpp
 )
