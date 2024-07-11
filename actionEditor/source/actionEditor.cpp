@@ -27,6 +27,10 @@
 #include <fstream>
 #include <iostream>
 
+#include "Math.hpp"
+
+#include "bindings/ImGui.hpp"
+
 namespace ed = ax::NodeEditor;
 
 # ifdef _MSC_VER
@@ -37,7 +41,7 @@ namespace ed = ax::NodeEditor;
 # define portable_sprintf   sprintf
 # endif
 
-struct Example:
+struct App:
     public Application
 {
     using Application::Application;
@@ -54,6 +58,22 @@ struct Example:
         ed::Config config;
         config.SettingsFile = "Widgets.json";
         m_Context = ed::CreateEditor(&config);
+        
+        m_lua.open_libraries(
+            sol::lib::base,
+            sol::lib::package,
+            sol::lib::string,
+            sol::lib::math,
+            sol::lib::table,
+            sol::lib::bit32,
+            sol::lib::utf8,
+            sol::lib::os,
+            sol::lib::coroutine
+        );
+
+        bindings::open_imgui(m_lua);
+
+
     }
 
     void OnStop() override
@@ -94,22 +114,7 @@ struct Example:
             // Normal Button
             static int clicked = 0;
             static int lvar_1 = 0;
-            if (ImGui::Button("Test Lua"))
-            {
-                std::cout << "=== running lua code ===" << std::endl;
-
-                sol::state lua;
-                lua.open_libraries(sol::lib::base);
-
-                // load and execute from string
-                lua.script("a = 'test'");
-                // load and execute from file
-                lvar_1 = lua.script_file("data/lua/a_lua_script.lua");
-
-                // run a script, get the result
-                int value = lua.script("return 54");
-                assert(value == 54);
-            }
+            lvar_1 = m_lua.script_file("data/hello_world.lua");
             ImGui::SameLine();
             ImGui::Text("lvar_1 %d", lvar_1);
             if (ImGui::Button("Button"))
@@ -440,6 +445,7 @@ struct Example:
     }
 
     ed::EditorContext* m_Context = nullptr;
+    sol::state m_lua{};
 
     ImVector<LinkInfo>   m_Links;                // List of live links. It is dynamic unless you want to create read-only view over nodes.
     int                  m_NextLinkId = 100;     // Counter to help generate link ids. In real application this will probably based on pointer to user data structure.
@@ -447,10 +453,10 @@ struct Example:
 
 int Main(int argc, char** argv)
 {
-    Example exampe("Widgets", argc, argv);
+    App app("Widgets", argc, argv);
 
-    if (exampe.Create())
-        return exampe.Run();
+    if (app.Create())
+        return app.Run();
 
     return 0;
 }

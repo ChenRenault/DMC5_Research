@@ -12,7 +12,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_ROOT_DIR}/cmake)
 
 # Node editor use C++14
-set(CMAKE_CXX_STANDARD            17)
+set(CMAKE_CXX_STANDARD            23)
 set(CMAKE_CXX_STANDARD_REQUIRED   YES)
 
 # Macro that will configure an application
@@ -61,12 +61,15 @@ macro(add_app_executable name)
 
     add_executable(${name} ${_APP_Type} ${_APP_Sources} ${_APP_Resources} ${_APP_CommonResources})
 
+    find_package(glm REQUIRED)
     find_package(imgui REQUIRED)
     find_package(imgui_node_editor REQUIRED)
     find_package(lua REQUIRED)
     find_package(sol2 REQUIRED)
 
-    target_link_libraries(${name} PRIVATE imgui imgui_node_editor lua sol2 application)
+    target_link_libraries(${name} PRIVATE glm imgui imgui_node_editor lua sol2 application)
+    target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
     set(_APPBinDir ${CMAKE_BINARY_DIR}/bin)
 
@@ -125,5 +128,8 @@ endmacro()
 add_subdirectory(source/application)
 
 add_app_executable(actionEditor
+    source/bindings/Imgui.hpp
+    source/bindings/Imgui.cpp
+    source/Math.hpp
     source/actionEditor.cpp
 )
