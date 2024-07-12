@@ -12,6 +12,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include <spdlog/spdlog.h>
+
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
@@ -350,7 +352,7 @@ sol::variadic_results combo(sol::this_state s, const char* label, sol::object se
     const char* preview_value = "";
 
     if (!values.empty()) {
-        if (selection.is<sol::nil_t>() || values.get_or(selection, sol::make_object(s, sol::nil)).is<sol::nil_t>()) {
+        if (selection.is<sol::lua_nil_t>() || values.get_or(selection, sol::make_object(s, sol::lua_nil)).is<sol::lua_nil_t>()) {
             selection = (*values.begin()).first;
         }
 
@@ -447,7 +449,7 @@ bool begin_window(const char* name, sol::object open_obj, ImGuiWindowFlags flags
     bool open = true;
     bool* open_p = nullptr;
 
-    if (!open_obj.is<sol::nil_t>() && open_obj.is<bool>()) {
+    if (!open_obj.is<sol::lua_nil_t>() && open_obj.is<bool>()) {
         open = open_obj.as<bool>();
         open_p = &open;
     }
@@ -1561,13 +1563,13 @@ void line(float x1, float y1, float x2, float y2, ImU32 color) {
 }
 
 void outline_circle(float x, float y, float radius, ImU32 color, sol::object num_segments) {
-    auto segments = num_segments.is<sol::nil_t>() ? 32 : num_segments.as<int>();
+    auto segments = num_segments.is<sol::lua_nil_t>() ? 32 : num_segments.as<int>();
 
     ImGui::GetBackgroundDrawList()->AddCircle(ImVec2{x, y}, radius, color, segments);
 }
 
 void filled_circle(float x, float y, float radius, ImU32 color, sol::object num_segments) {
-    auto segments = num_segments.is<sol::nil_t>() ? 32 : num_segments.as<int>();
+    auto segments = num_segments.is<sol::lua_nil_t>() ? 32 : num_segments.as<int>();
 
     ImGui::GetBackgroundDrawList()->AddCircleFilled(ImVec2{x, y}, radius, color, segments);
 }
@@ -1697,14 +1699,14 @@ sol::variadic_results CreateEditor(sol::this_state s, const char* name) {
 }
 
 void DestroyEditor(sol::object context_obj) {
-    if (!context_obj.is<sol::nil_t>()) {
-        ed::DestroyEditor(context_obj.as<ed::EditorContext*>());
+    if (!context_obj.is<sol::lua_nil_t>()) {
+        ed::DestroyEditor(reinterpret_cast<ed::EditorContext*>(context_obj.as<ed::Detail::EditorContext*>()));
     }
 }
 
 void SetCurrentEditor(sol::object context_obj) {
-    if (!context_obj.is<sol::nil_t>()) {
-        ed::SetCurrentEditor(context_obj.as<ed::EditorContext*>());
+    if (!context_obj.is<sol::lua_nil_t>()) {
+        ed::SetCurrentEditor(reinterpret_cast<ed::EditorContext*>(context_obj.as<ed::Detail::EditorContext*>()));
     }
     else {
         ed::SetCurrentEditor(nullptr);

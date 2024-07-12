@@ -202,7 +202,7 @@ void bindings::open_fs(sol::state& lua) {
         if (!path) {
             lua_pushstring(l, "io.open: unknown error");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         ::fs::create_directories(path->parent_path());
@@ -231,21 +231,21 @@ void bindings::open_fs(sol::state& lua) {
         return sol::make_object(l, sol::nil);
     };*/
 
-    io["popen"] = sol::make_object(lua, sol::nil); // on second thought, I don't want to allow this. If someone really wants this functionality, they can just make a C++ plugin and use the C++ API.
+    io["popen"] = sol::make_object(lua, sol::lua_nil); // on second thought, I don't want to allow this. If someone really wants this functionality, they can just make a C++ plugin and use the C++ API.
 
     // These functions can take nil as the first argument and they will return the default filehandle associated with stdin, stdout, or stderr.
     // So they should be safe in that respect.
     sol::function old_lines = io["lines"];
 
     io["lines"] = [=](sol::this_state l, sol::object filepath_or_nil) -> sol::object {
-        if (filepath_or_nil.is<sol::nil_t>()) {
-            return old_lines(l, sol::make_object(l, sol::nil));
+        if (filepath_or_nil.is<sol::lua_nil_t>()) {
+            return old_lines(l, sol::make_object(l, sol::lua_nil));
         }
 
         if (!filepath_or_nil.is<std::string>()) {
             lua_pushstring(l, "io.lines: expected a string or nil as the first argument");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         auto filepath = filepath_or_nil.as<std::string>();
@@ -254,7 +254,7 @@ void bindings::open_fs(sol::state& lua) {
         if (!path) {
             lua_pushstring(l, "io.lines: unknown error");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         ::fs::create_directories(path->parent_path());
@@ -265,14 +265,14 @@ void bindings::open_fs(sol::state& lua) {
     sol::function old_input = io["input"];
 
     io["input"] = [=](sol::this_state l, sol::object filepath_or_nil) -> sol::object {
-        if (filepath_or_nil.is<sol::nil_t>()) {
-             return old_input(l, sol::make_object(l, sol::nil));
+        if (filepath_or_nil.is<sol::lua_nil_t>()) {
+             return old_input(l, sol::make_object(l, sol::lua_nil));
         }
 
         if (!filepath_or_nil.is<std::string>()) {
             lua_pushstring(l, "io.input: expected a string or nil as the first argument");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         auto filepath = filepath_or_nil.as<std::string>();
@@ -281,7 +281,7 @@ void bindings::open_fs(sol::state& lua) {
         if (!path) {
             lua_pushstring(l, "io.input: unknown error");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         ::fs::create_directories(path->parent_path());
@@ -292,14 +292,14 @@ void bindings::open_fs(sol::state& lua) {
     sol::function old_output = io["output"];
 
     io["output"] = [=](sol::this_state l, sol::object filepath_or_nil) -> sol::object {
-        if (filepath_or_nil.is<sol::nil_t>()) {
-             return old_output(l, sol::make_object(l, sol::nil));
+        if (filepath_or_nil.is<sol::lua_nil_t>()) {
+             return old_output(l, sol::make_object(l, sol::lua_nil));
         }
 
         if (!filepath_or_nil.is<std::string>()) {
             lua_pushstring(l, "io.output: expected a string or nil as the first argument");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         auto filepath = filepath_or_nil.as<std::string>();
@@ -308,7 +308,7 @@ void bindings::open_fs(sol::state& lua) {
         if (!path) {
             lua_pushstring(l, "io.output: unknown error");
             lua_error(l);
-            return sol::make_object(l, sol::nil);
+            return sol::make_object(l, sol::lua_nil);
         }
 
         ::fs::create_directories(path->parent_path());

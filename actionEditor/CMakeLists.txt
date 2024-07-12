@@ -60,15 +60,27 @@ macro(add_app_executable name)
     endif()
 
     add_executable(${name} ${_APP_Type} ${_APP_Sources} ${_APP_Resources} ${_APP_CommonResources})
-
-    find_package(glm REQUIRED)
+    
+    find_package(fmt CONFIG REQUIRED)
+    find_package(glm CONFIG REQUIRED)
+    find_package(spdlog CONFIG REQUIRED)
+    find_package(nlohmann_json REQUIRED)
+    find_package(lua CONFIG REQUIRED)
+    find_package(sol2 CONFIG REQUIRED)
     find_package(imgui REQUIRED)
     find_package(imgui_node_editor REQUIRED)
-    find_package(lua REQUIRED)
-    find_package(sol2 REQUIRED)
-    find_package(nlohmann_json REQUIRED)
 
-    target_link_libraries(${name} PRIVATE glm imgui imgui_node_editor lua nlohmann_json sol2 application)
+    target_link_libraries(${name} PRIVATE
+        fmt::fmt
+        glm::glm
+        nlohmann_json::nlohmann_json
+        imgui
+        imgui_node_editor
+        lua
+        spdlog::spdlog
+        sol2
+        application
+    )
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 

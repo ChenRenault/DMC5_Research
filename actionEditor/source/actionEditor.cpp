@@ -24,12 +24,16 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
+#include <fmt/core.h>
+
 #include <fstream>
 #include <iostream>
 
 #include "Math.hpp"
 
 #include "bindings/ImGui.hpp"
+#include "bindings/FS.hpp"
+#include "bindings/Json.hpp"
 
 namespace ed = ax::NodeEditor;
 
@@ -72,8 +76,174 @@ struct App:
         );
 
         bindings::open_imgui(m_lua);
+        bindings::open_json(m_lua);
+        bindings::open_fs(m_lua);
 
+        // clang-format off
+    // add vec2 usertype
+    m_lua.new_usertype<Vector2f>("Vector2f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float)>(),
+        "clone", [](Vector2f& v) -> Vector2f { return v; },
+        "x", &Vector2f::x, 
+        "y", &Vector2f::y, 
+        "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
+        "length", [](Vector2f& v) { return glm::length(v); },
+        "normalize", [](Vector2f& v) { v = glm::normalize(v); },
+        "normalized", [](Vector2f& v) { return glm::normalize(v); },
+        sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
+        sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
+        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec3", [](Vector2f& v) { return Vector3f{v.x, v.y, 0.0f}; },
+        "to_vec4", [](Vector2f& v) { return Vector4f{v.x, v.y, 0.0f, 0.0f}; });
 
+    // add vec3 usertype
+    m_lua.new_usertype<Vector3f>("Vector3f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
+        "clone", [](Vector3f& v) -> Vector3f { return v; },
+        "x", &Vector3f::x,
+        "y", &Vector3f::y,
+        "z", &Vector3f::z,
+        "dot", [](Vector3f& v1, Vector3f& v2) { return glm::dot(v1, v2); },
+        "cross", [](Vector3f& v1, Vector3f& v2) { return glm::cross(v1, v2); },
+        "length", [](Vector3f& v) { return glm::length(v); },
+        "normalize", [](Vector3f& v) { v = glm::normalize(v); },
+        "normalized", [](Vector3f& v) { return glm::normalize(v); },
+        "reflect", [](Vector3f& v, Vector3f& normal) { return glm::reflect(v, normal); },
+        "refract", [](Vector3f& v, Vector3f& normal, float eta) { return glm::refract(v, normal, eta); },
+        "lerp", [](Vector3f& v1, Vector3f& v2, float t) { return glm::lerp(v1, v2, t); },
+        sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
+        sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
+        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
+        "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; },
+        "to_mat", [](Vector3f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f})); },
+        "to_quat", [](Vector3f& v) { 
+            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f}));
+
+            return glm::quat{mat};
+        });
+
+    // add vec4 usertype
+    m_lua.new_usertype<Vector4f>("Vector4f",
+        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float, float)>(),
+        "clone", [](Vector4f& v) -> Vector4f { return v; },
+        "x", &Vector4f::x,
+        "y", &Vector4f::y,
+        "z", &Vector4f::z,
+        "w", &Vector4f::w,
+        "dot", [](Vector4f& v1, Vector4f& v2) { return glm::dot(v1, v2); },
+        "cross", [](Vector4f& v1, Vector4f& v2) { return glm::cross(Vector3f{v1.x, v1.y, v1.z}, Vector3f{v2.x, v2.y, v2.z}); },
+        "length", [](Vector4f& v) { return glm::length(v); },
+        "normalize", [](Vector4f& v) { v = glm::normalize(v); },
+        "normalized", [](Vector4f& v) { return glm::normalize(v); },
+        "reflect", [](Vector4f& v, Vector4f& normal) { return glm::reflect(v, normal); },
+        "refract", [](Vector4f& v, Vector4f& normal, float eta) { return glm::refract(v, normal, eta); },
+        "lerp", [](Vector4f& v1, Vector4f& v2, float t) { return glm::lerp(v1, v2, t); },
+        sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
+        sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
+        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
+        "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
+        "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; },
+        "to_mat", [](Vector4f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f})); },
+        "to_quat", [](Vector4f& v) { 
+            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f}));
+
+            return glm::quat{mat};
+        });
+
+    // add Matrix4x4f (glm::mat4) usertype
+    m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
+        sol::meta_function::construct, 
+         sol::constructors<
+         Matrix4x4f(),
+         Matrix4x4f(const Vector4f&, const Vector4f&, const Vector4f&, const Vector4f&),
+         Matrix4x4f(float, float, float, float,
+                    float, float, float, float,
+                    float, float, float, float,
+                    float, float, float, float)
+        >(),
+        "clone", [](Matrix4x4f& m) -> Matrix4x4f { return m; },
+        "identity", []() { return glm::identity<Matrix4x4f>(); },
+        "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
+        "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
+        "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
+        "interpolate", [](Matrix4x4f& m1, Matrix4x4f& m2, float t) { return glm::interpolate(m1, m2, t); },
+        "matrix_rotation", [](Matrix4x4f& m) { return glm::extractMatrixRotation(m); },
+        sol::meta_function::multiplication, sol::overload(
+            [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
+                return lhs * rhs;
+            },
+            [](Matrix4x4f& lhs, Vector4f& rhs) {
+
+                return lhs * rhs;
+            }
+        ),
+        sol::meta_function::index, [](sol::this_state s, Matrix4x4f& lhs, sol::object index_obj) -> sol::object {
+            if (!index_obj.is<int>()) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            const auto index = index_obj.as<int>();
+
+            if (index >= 4) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            return sol::make_object(s, &lhs[index]);
+        },
+        sol::meta_function::new_index, [](Matrix4x4f& lhs, int index, Vector4f& rhs) {
+            lhs[index] = rhs;
+        }
+    );
+
+    // add glm::quat usertype
+    m_lua.new_usertype<glm::quat>("Quaternion",
+        sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
+        "clone", [](glm::quat& q) -> glm::quat { return q; },
+        "identity", []() { return glm::identity<glm::quat>(); },
+        "x", &glm::quat::x,
+        "y", &glm::quat::y,
+        "z", &glm::quat::z,
+        "w", &glm::quat::w,
+        "to_mat4", [](glm::quat& q) { return Matrix4x4f{q}; },
+        "inverse", [](glm::quat& q) { return glm::inverse(q); },
+        "invert", [](glm::quat& q) { q = glm::inverse(q); },
+        "normalize", [](glm::quat& q) { q = glm::normalize(q); },
+        "normalized", [](glm::quat& q) { return glm::normalize(q); },
+        "slerp", [](glm::quat& q1, glm::quat& q2, float t) { return glm::slerp(q1, q2, t); },
+        "dot", [](glm::quat& q1, glm::quat& q2) { return glm::dot(q1, q2); },
+        "length", [](glm::quat& q) { return glm::length(q); },
+        "conjugate", [](glm::quat& q) { return glm::conjugate(q); },
+        sol::meta_function::multiplication, sol::overload( 
+            [](glm::quat& lhs, glm::quat& rhs) -> glm::quat {
+                return lhs * rhs;
+            },
+            [](glm::quat& lhs, Vector3f& rhs) -> Vector3f {
+                return lhs * rhs;
+            },
+            [](glm::quat& lhs, Vector4f& rhs) -> Vector4f {
+                return lhs * rhs;
+            }
+        ),
+        sol::meta_function::index, [](sol::this_state s, glm::quat& lhs, sol::object index_obj) -> sol::object {
+            if (!index_obj.is<int>()) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            const auto index = index_obj.as<int>();
+
+            if (index >= 4) {
+                return sol::make_object(s, sol::lua_nil);
+            }
+
+            return sol::make_object(s, lhs[index]);
+        },
+        sol::meta_function::new_index, [](glm::quat& lhs, int index, float rhs) {
+            lhs[index] = rhs;
+        }
+    );
+
+        m_lua.script_file("data/actionEditor.lua");
     }
 
     void OnStop() override
@@ -83,372 +253,16 @@ struct App:
 
     void OnFrame(float deltaTime) override
     {
-        static bool firstframe = true; // Used to position the nodes on startup
         auto& io = ImGui::GetIO();
 
         // FPS Counter Ribbon
         ImGui::Text("FPS: %.2f (%.2gms)", io.Framerate, io.Framerate ? 1000.0f / io.Framerate : 0.0f);
         ImGui::Separator();
-
-        // Node Editor Widget
-        ed::SetCurrentEditor(m_Context);
-        ed::Begin("My Editor", ImVec2(0.0, 0.0f));
-            int uniqueId = 1;
-
-
-            // Basic Widgets Demo  ==============================================================================================
-            auto basic_id = uniqueId++;
-            ed::BeginNode(basic_id);
-            ImGui::Text("Basic Widget Demo");
-            ed::BeginPin(uniqueId++, ed::PinKind::Input);
-            ImGui::Text("-> In");
-            ed::EndPin();
-            ImGui::SameLine();
-            ImGui::Dummy(ImVec2(250, 0)); // Hacky magic number to space out the output pin.
-            ImGui::SameLine();
-            ed::BeginPin(uniqueId++, ed::PinKind::Output);
-            ImGui::Text("Out ->");
-            ed::EndPin();
-
-            // Widget Demo from imgui_demo.cpp...
-            // Normal Button
-            static int clicked = 0;
-            static int lvar_1 = 0;
-            lvar_1 = m_lua.script_file("data/hello_world.lua");
-            ImGui::SameLine();
-            ImGui::Text("lvar_1 %d", lvar_1);
-            if (ImGui::Button("Button"))
-                clicked++;
-            if (clicked & 1)
-            {
-                ImGui::SameLine();
-                ImGui::Text("Thanks for clicking me!");
-            }
-
-            // Checkbox
-            static bool check = true;
-            ImGui::Checkbox("checkbox", &check);
-
-            // Radio buttons
-            static int e = 0;
-            ImGui::RadioButton("radio a", &e, 0); ImGui::SameLine();
-            ImGui::RadioButton("radio b", &e, 1); ImGui::SameLine();
-            ImGui::RadioButton("radio c", &e, 2);
-
-            // Color buttons, demonstrate using PushID() to add unique identifier in the ID stack, and changing style.
-            for (int i = 0; i < 7; i++)
-            {
-                if (i > 0)
-                    ImGui::SameLine();
-                ImGui::PushID(i);
-                ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor::HSV(i / 7.0f, 0.6f, 0.6f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(i / 7.0f, 0.7f, 0.7f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(i / 7.0f, 0.8f, 0.8f));
-                ImGui::Button("Click");
-                ImGui::PopStyleColor(3);
-                ImGui::PopID();
-            }
-
-            // Use AlignTextToFramePadding() to align text baseline to the baseline of framed elements (otherwise a Text+SameLine+Button sequence will have the text a little too high by default)
-            ImGui::AlignTextToFramePadding();
-            ImGui::Text("Hold to repeat:");
-            ImGui::SameLine();
-
-            // Arrow buttons with Repeater
-            static int counter = 0;
-            float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
-            ImGui::PushButtonRepeat(true);
-            if (ImGui::ArrowButton("##left", ImGuiDir_Left)) { counter--; }
-            ImGui::SameLine(0.0f, spacing);
-            if (ImGui::ArrowButton("##right", ImGuiDir_Right)) { counter++; }
-            ImGui::PopButtonRepeat();
-            ImGui::SameLine();
-            ImGui::Text("%d", counter);
-
-            // The input widgets also require you to manually disable the editor shortcuts so the view doesn't fly around.
-            // (note that this is a per-frame setting, so it disables it for all text boxes.  I left it here so you could find it!)
-            ed::EnableShortcuts(!io.WantTextInput);
-            // The input widgets require some guidance on their widths, or else they're very large. (note matching pop at the end).
-            ImGui::PushItemWidth(200);
-            static char str1[128] = "";
-            ImGui::InputTextWithHint("input text (w/ hint)", "enter text here", str1, IM_ARRAYSIZE(str1));
-
-            static float f0 = 0.001f;
-            ImGui::InputFloat("input float", &f0, 0.01f, 1.0f, "%.3f");
-
-            static float f1 = 1.00f, f2 = 0.0067f;
-            ImGui::DragFloat("drag float", &f1, 0.005f);
-            ImGui::DragFloat("drag small float", &f2, 0.0001f, 0.0f, 0.0f, "%.06f ns");
-            ImGui::PopItemWidth();
-
-            ed::EndNode();
-            if (firstframe)
-            {
-                ed::SetNodePosition(basic_id, ImVec2(20, 20));
-            }
-
-            // Headers and Trees Demo =======================================================================================================
-            // TreeNodes and Headers streatch to the entire remaining work area. To put them in nodes what we need to do is to tell
-            // ImGui out work area is shorter. We can achieve that right now only by using columns API.
-            //
-            // Relevent bugs: https://github.com/thedmd/imgui-node-editor/issues/30
-            auto header_id = uniqueId++;
-            ed::BeginNode(header_id);
-                ImGui::Text("Tree Widget Demo");
-
-                // Pins Row
-                ed::BeginPin(uniqueId++, ed::PinKind::Input);
-                    ImGui::Text("-> In");
-                ed::EndPin();
-                ImGui::SameLine();
-                ImGui::Dummy(ImVec2(35, 0)); //  magic number - Crude & simple way to nudge over the output pin. Consider using layout and springs
-                ImGui::SameLine();
-                ed::BeginPin(uniqueId++, ed::PinKind::Output);
-                    ImGui::Text("Out ->");
-                ed::EndPin();
-
-                // Tree column startup -------------------------------------------------------------------
-                // Push dummy widget to extend node size. Columns do not do that.
-                float width = 135; // bad magic numbers. used to define width of tree widget
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-                ImGui::Dummy(ImVec2(width, 0));
-                ImGui::PopStyleVar();
-
-                // Start columns, but use only first one.
-                ImGui::BeginColumns("##TreeColumns", 2,
-                    ImGuiOldColumnFlags_NoBorder |
-                    ImGuiOldColumnFlags_NoResize |
-                    ImGuiOldColumnFlags_NoPreserveWidths |
-                    ImGuiOldColumnFlags_NoForceWithinWindow);
-
-                // Adjust column width to match requested one.
-                ImGui::SetColumnWidth(0, width
-                    + ImGui::GetStyle().WindowPadding.x
-                    + ImGui::GetStyle().ItemSpacing.x);
-                // End of tree column startup --------------------------------------------------------------
-
-                // Back to normal ImGui drawing, in our column.
-                if (ImGui::CollapsingHeader("Open Header"))
-                {
-                    ImGui::Text("Hello There");
-                    if (ImGui::TreeNode("Open Tree")) {
-                        static bool OP1_Bool = false;
-                        ImGui::Text("Checked: %s", OP1_Bool ? "true" : "false");
-                        ImGui::Checkbox("Option 1", &OP1_Bool);
-                        ImGui::TreePop();
-                    }
-                }
-                // Tree Column Shutdown
-                ImGui::EndColumns();
-            ed::EndNode(); // End of Tree Node Demo
-
-            if (firstframe)
-            {
-                ed::SetNodePosition(header_id, ImVec2(420, 20));
-            }
-
-            // Tool Tip & Pop-up Demo =====================================================================================
-            // Tooltips, combo-boxes, drop-down menus need to use a work-around to place the "overlay window" in the canvas.
-            // To do this, we must defer the popup calls until after we're done drawing the node material.
-            //
-            // Relevent bugs:  https://github.com/thedmd/imgui-node-editor/issues/48
-            auto popup_id = uniqueId++;
-            ed::BeginNode(popup_id);
-                ImGui::Text("Tool Tip & Pop-up Demo");
-                ed::BeginPin(uniqueId++, ed::PinKind::Input);
-                    ImGui::Text("-> In");
-                ed::EndPin();
-                ImGui::SameLine();
-                ImGui::Dummy(ImVec2(85, 0)); // Hacky magic number to space out the output pin.
-                ImGui::SameLine();
-                ed::BeginPin(uniqueId++, ed::PinKind::Output);
-                    ImGui::Text("Out ->");
-                ed::EndPin();
-
-                // Tooltip example
-                ImGui::Text("Hover over me");
-                static bool do_tooltip = false;
-                do_tooltip = ImGui::IsItemHovered() ? true : false;
-                ImGui::SameLine();
-                ImGui::Text("- or me");
-                static bool do_adv_tooltip = false;
-                do_adv_tooltip = ImGui::IsItemHovered() ? true : false;
-
-                // Use AlignTextToFramePadding() to align text baseline to the baseline of framed elements
-                // (otherwise a Text+SameLine+Button sequence will have the text a little too high by default)
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("Option:");
-                ImGui::SameLine();
-                static char popup_text[128] = "Pick one!";
-                static bool do_popup = false;
-                if (ImGui::Button(popup_text)) {
-                    do_popup = true;	// Instead of saying OpenPopup() here, we set this bool, which is used later in the Deferred Pop-up Section
-                }
-            ed::EndNode();
-            if (firstframe) {
-                ed::SetNodePosition(popup_id, ImVec2(610, 20));
-            }
-
-            // --------------------------------------------------------------------------------------------------
-            // Deferred Pop-up Section
-
-            // This entire section needs to be bounded by Suspend/Resume!  These calls pop us out of "node canvas coordinates"
-            // and draw the popups in a reasonable screen location.
-            ed::Suspend();
-            // There is some stately stuff happening here.  You call "open popup" exactly once, and this
-            // causes it to stick open for many frames until the user makes a selection in the popup, or clicks off to dismiss.
-            // More importantly, this is done inside Suspend(), so it loads the popup with the correct screen coordinates!
-            if (do_popup) {
-                ImGui::OpenPopup("popup_button"); // Cause openpopup to stick open.
-                do_popup = false; // disable bool so that if we click off the popup, it doesn't open the next frame.
-            }
-
-            // This is the actual popup Gui drawing section.
-            if (ImGui::BeginPopup("popup_button")) {
-                // Note: if it weren't for the child window, we would have to PushItemWidth() here to avoid a crash!
-                ImGui::TextDisabled("Pick One:");
-                ImGui::BeginChild("popup_scroller", ImVec2(100, 100), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
-                if (ImGui::Button("Option 1")) {
-                    portable_strcpy(popup_text, "Option 1");
-                    ImGui::CloseCurrentPopup();  // These calls revoke the popup open state, which was set by OpenPopup above.
-                }
-                if (ImGui::Button("Option 2")) {
-                    portable_strcpy(popup_text, "Option 2");
-                    ImGui::CloseCurrentPopup();
-                }
-                if (ImGui::Button("Option 3")) {
-                    portable_strcpy(popup_text, "Option 3");
-                    ImGui::CloseCurrentPopup();
-                }
-                if (ImGui::Button("Option 4")) {
-                    portable_strcpy(popup_text, "Option 4");
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::EndChild();
-                ImGui::EndPopup(); // Note this does not do anything to the popup open/close state. It just terminates the content declaration.
-            }
-
-            // Handle the simple tooltip
-            if (do_tooltip)
-                ImGui::SetTooltip("I am a tooltip");
-
-            // Handle the advanced tooltip
-            if (do_adv_tooltip) {
-                ImGui::BeginTooltip();
-                ImGui::Text("I am a fancy tooltip");
-                static float arr[] = { 0.6f, 0.1f, 1.0f, 0.5f, 0.92f, 0.1f, 0.2f };
-                ImGui::PlotLines("Curve", arr, IM_ARRAYSIZE(arr));
-                ImGui::EndTooltip();
-            }
-
-            ed::Resume();
-            // End of "Deferred Pop-up section"
-
-
-
-            // Plot Widgets =========================================================================================
-            // Note: most of these plots can't be used in nodes missing, because they spawn tooltips automatically,
-            // so we can't trap them in our deferred pop-up mechanism.  This causes them to fly into a random screen
-            // location.
-            auto plot_id = uniqueId++;
-            ed::BeginNode(plot_id);
-                ImGui::Text("Plot Demo");
-                ed::BeginPin(uniqueId++, ed::PinKind::Input);
-                    ImGui::Text("-> In");
-                ed::EndPin();
-                ImGui::SameLine();
-                ImGui::Dummy(ImVec2(250, 0)); // Hacky magic number to space out the output pin.
-                ImGui::SameLine();
-                ed::BeginPin(uniqueId++, ed::PinKind::Output);
-                    ImGui::Text("Out ->");
-                ed::EndPin();
-
-                ImGui::PushItemWidth(300);
-
-                // Animate a simple progress bar
-                static float progress = 0.0f, progress_dir = 1.0f;
-                progress += progress_dir * 0.4f * ImGui::GetIO().DeltaTime;
-                if (progress >= +1.1f) { progress = +1.1f; progress_dir *= -1.0f; }
-                if (progress <= -0.1f) { progress = -0.1f; progress_dir *= -1.0f; }
-
-
-                // Typically we would use ImVec2(-1.0f,0.0f) or ImVec2(-FLT_MIN,0.0f) to use all available width,
-                // or ImVec2(width,0.0f) for a specified width. ImVec2(0.0f,0.0f) uses ItemWidth.
-                ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
-                ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-                ImGui::Text("Progress Bar");
-
-                float progress_saturated = (progress < 0.0f) ? 0.0f : (progress > 1.0f) ? 1.0f : progress;
-                char buf[32];
-                portable_sprintf(buf, "%d/%d", (int)(progress_saturated * 1753), 1753);
-                ImGui::ProgressBar(progress, ImVec2(0.f, 0.f), buf);
-
-                ImGui::PopItemWidth();
-            ed::EndNode();
-            if (firstframe) {
-                ed::SetNodePosition(plot_id, ImVec2(850, 20));
-            }
-            // ==================================================================================================
-            // Link Drawing Section
-
-            for (auto& linkInfo : m_Links)
-                ed::Link(linkInfo.Id, linkInfo.InputId, linkInfo.OutputId);
-
-            // ==================================================================================================
-            // Interaction Handling Section
-            // This was coppied from BasicInteration.cpp. See that file for commented code.
-
-            // Handle creation action ---------------------------------------------------------------------------
-            if (ed::BeginCreate())
-            {
-                ed::PinId inputPinId, outputPinId;
-                if (ed::QueryNewLink(&inputPinId, &outputPinId))
-                {
-                    if (inputPinId && outputPinId)
-                    {
-                        if (ed::AcceptNewItem())
-                        {
-                            m_Links.push_back({ ed::LinkId(m_NextLinkId++), inputPinId, outputPinId });
-                            ed::Link(m_Links.back().Id, m_Links.back().InputId, m_Links.back().OutputId);
-                        }
-                    }
-                }
-            }
-            ed::EndCreate();
-
-            // Handle deletion action ---------------------------------------------------------------------------
-            if (ed::BeginDelete())
-            {
-                ed::LinkId deletedLinkId;
-                while (ed::QueryDeletedLink(&deletedLinkId))
-                {
-                    if (ed::AcceptDeletedItem())
-                    {
-                        for (auto& link : m_Links)
-                        {
-                            if (link.Id == deletedLinkId)
-                            {
-                                m_Links.erase(&link);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            ed::EndDelete();
-
-        ed::End();
-        ed::SetCurrentEditor(nullptr);
-        firstframe = false;
-        //ImGui::ShowMetricsWindow();
-        //ImGui::ShowDemoWindow();
+        m_lua["actionEditorFunc"]();
     }
 
     ed::EditorContext* m_Context = nullptr;
     sol::state m_lua{};
-
-    ImVector<LinkInfo>   m_Links;                // List of live links. It is dynamic unless you want to create read-only view over nodes.
-    int                  m_NextLinkId = 100;     // Counter to help generate link ids. In real application this will probably based on pointer to user data structure.
 };
 
 int Main(int argc, char** argv)

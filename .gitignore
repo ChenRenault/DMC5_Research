@@ -9,3 +9,5 @@ build/
 build64_all/
 build64/
 cmake-build*
+
+CMakeUserPresets.json

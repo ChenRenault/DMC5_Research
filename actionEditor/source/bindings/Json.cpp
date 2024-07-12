@@ -1,8 +1,8 @@
 #include <filesystem>
 #include <fstream>
 
-#include <json.hpp>
-// #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 namespace detail {
 json encode_any(sol::object obj) {
     switch (obj.get_type()) {
-    case sol::type::nil:
+    case sol::type::lua_nil:
         return json{};
     case sol::type::boolean:
         return obj.as<bool>();
@@ -69,7 +69,7 @@ sol::object decode_any(sol::this_state l, const json& j) {
 
     switch (j.type()) {
     case value_t::null:
-        return sol::nil;
+        return sol::lua_nil;
     case value_t::boolean:
         return sol::make_object(l, j.get<bool>());
     case value_t::number_integer:
@@ -95,7 +95,7 @@ sol::object decode_any(sol::this_state l, const json& j) {
         return t;
     }
     default:
-        return sol::nil;
+        return sol::lua_nil;
     }
 }
 std::filesystem::path get_persistent_dir(){
@@ -110,7 +110,7 @@ sol::object load_string(sol::this_state l, const std::string& s) try {
     const auto j = json::parse(s);
     return detail::decode_any(l, j);
 } catch (const std::exception& e) {
-    return sol::nil;
+    return sol::lua_nil;
 }
 
 std::string dump_string(sol::object obj, sol::object indent_obj) try {
@@ -126,19 +126,14 @@ std::string dump_string(sol::object obj, sol::object indent_obj) try {
 }
 
 sol::object load_file(sol::this_state l, const std::string& filepath) try {
-    if (filepath.find("..") != std::string::npos) {
-        throw std::runtime_error{"json.load_file does not allow access to parent directories"};
-    }
+    const auto tpath = std::filesystem::path(filepath);
+    const auto realPath = (tpath.is_absolute() || filepath.find("..") != std::string::npos) ? tpath : detail::get_datadir() / filepath;
 
-    if (std::filesystem::path(filepath).is_absolute()) {
-        throw std::runtime_error{"json.load_file does not allow absolute paths"};
-    }
-
-    const auto j = json::parse(std::ifstream{detail::get_datadir() / filepath});
+    const auto j = json::parse(std::ifstream{realPath});
     return detail::decode_any(l, j);
 } catch (const json::exception& e) {
-    // spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
-    return sol::nil;
+    spdlog::error("[JSON] Failed to load file {}: {}", filepath, e.what());
+    return sol::lua_nil;
 }
 
 bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_obj) try {
@@ -164,7 +159,7 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
     f << detail::encode_any(obj).dump(indent);
     return true;
 } catch (const std::exception& e) {
-    // spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
+    spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
     return false;
 }
 
