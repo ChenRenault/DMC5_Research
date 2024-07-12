@@ -84,6 +84,11 @@ macro(add_app_executable name)
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_include_directories(${name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
+    target_compile_options(${name} 
+        PRIVATE 
+        $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
+    )
+
     set(_APPBinDir ${CMAKE_BINARY_DIR}/bin)
 
     set_target_properties(${name} PROPERTIES

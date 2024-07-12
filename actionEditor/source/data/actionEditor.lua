@@ -3,7 +3,7 @@
 
 
 function G_LUA_ON_ERROR(err)
-    print("LUA ERROR: ", err, debug.traceback(""))
+    print("LUA ERROR: ", err, debug.traceback("", 2))
 end
 
 -- 枚举ID生成器创建函数
@@ -72,67 +72,334 @@ local PinKind =
 
 
 local EDITOR_SIZE = {
-    x = math.max(imgui.get_display_size().x / 4, 640),
-    y = math.max(imgui.get_display_size().y / 2, 480)
+    x = math.max(imgui.get_display_size().x, 1280),
+    y = math.max(imgui.get_display_size().y, 720)
 }
 
 
 local m_Context = nil
-local actionTree = nil
-local file_path = "pl0800_vergilPL_saved_tree.json"
+local node_input = 1
+local node_replace_input = 1
+local action_map = {}
+local action_name_map = {}
+local event_map = {}
+local event_name_map = {}
+local condition_map = {}
+local condition_name_map = {}
+local selection_map = {}
+local condition_selection_map = {}
+local node_map = {}
+local node_names = {}
+local first_times = {}
+local sort_dict = {}
+
+local custom_tree = {}
+local function recreate_globals()
+    custom_tree = {}
+    cached_node_names = {}
+    cached_node_indices = {}
+    action_map = {}
+    action_name_map = {}
+    event_map = {}
+    event_name_map = {}
+    condition_map = {}
+    condition_name_map = {}
+    selection_map = {}
+    condition_selection_map = {}
+    node_map = {}
+    node_names = {}
+    first_times = {}
+    sort_dict = {}
+end
+
+
+
+local node_replacements = {
+
+}
+
+-- local TAB = imgui.get_key_index(0)
+-- local LEFT_ARROW = imgui.get_key_index(1)
+-- local RIGHT_ARROW = imgui.get_key_index(2)
+-- local UP_ARROW = imgui.get_key_index(3)
+-- local DOWN_ARROW = imgui.get_key_index(4)
+-- local ENTER = imgui.get_key_index(13)
+-- local VK_LSHIFT = 0xA0
+
+local cfg = {
+    -- view
+    always_show_node_editor = false,
+    show_minimap = true,
+    follow_active_nodes = false,
+    display_parent_of_active = true,
+    parent_display_depth = 0,
+    default_node = 0,
+    show_side_panels = true,
+    sidePanelWidth = 400,
+    editorPanelWidth = 800,
+    graph_closes_with_reframework = true,
+
+    -- editor
+    pan_speed = 1000,
+    lerp_speed = 2.0,
+    lerp_nodes = true,
+
+    -- search
+    max_search_results = 200,
+    default_node_search_name = "",
+    default_condition_search_name = "",
+    default_action_search_name = "",
+    search_allow_duplicates = true
+}
+local file_path = "D:/WS/Modding/DMC5_Research/pl0800_vergilPL_saved_tree.json"
 
 local function load_action_file(filePath)
     if not filePath then
         print("filePath is nil")
         return
     end
-    local data = json.load_file(filePath)
-    if data then
-        actionTree = data
+    return json.load_file(filePath)
+end
+
+local unlock_node_positioning = false
+
+local function draw_link(active, id, attr_start, attr_end)
+    if active then
+        imnodeed.Link(id, attr_start, attr_end)
+        imnodeed.Flow(id)
+    else
+        imnodeed.Link(id, attr_start, attr_end)
     end
 end
 
+local function draw_stupid_node(name, custom_id, render_inputs_cb, render_outputs_cb, render_after_cb)
+    local out = {}
 
-local function draw_node_action(id, name)
-    imnodeed.BeginNode(id)
+    if custom_id then
+        out.id = custom_id
+    else
+        out.id = imgui.get_id(name)
+    end
+
+    out.inputs = {}
+    out.outputs = {}
+
+    imnodeed.BeginNode(out.id)
+
     imgui.text(name)
+
+    if render_inputs_cb then
+        out.inputs = render_inputs_cb()
+    end
+
+    if render_outputs_cb then
+        out.outputs = render_outputs_cb()
+    end
+
+    if render_after_cb then
+        render_after_cb()
+    end
+
     imnodeed.EndNode()
+
+    return out
 end
 
-local function draw_tree_node(node)
-    if not node then
-        return
+local function draw_standard_node(name, custom_id, render_after_cb)
+    local out = draw_stupid_node(name, custom_id,
+        function()
+            local out2 = {}
+
+            if custom_id then
+                table.insert(out2, imgui.get_id(tostring(custom_id) .. "parent"))
+            else
+                table.insert(out2, imgui.get_id(name .. "parent"))
+            end
+        
+            imnodeed.BeginPin(out2[1], PinKind.Input);
+            imgui.text("-> parent")
+            imnodeed.EndPin();
+
+            return out2
+        end,
+        function()
+            local out2 = {}
+
+            if custom_id then
+                table.insert(out2, imgui.get_id(tostring(custom_id) .. "children"))
+            else
+                table.insert(out2, imgui.get_id(name .. "children"))
+            end
+            imgui.same_line()
+            imgui.dummy({math.max(imgui.calc_text_size(name).x + 100), 0})
+            imgui.same_line()
+            imnodeed.BeginPin(out2[1], PinKind.Output);
+            imgui.text("children ->")
+            imnodeed.EndPin();
+
+            return out2
+        end,
+        function()
+            if render_after_cb then
+                render_after_cb()
+            end
+        end
+    )
+
+    return out
+end
+
+local updated_tree = false
+local node_is_hovered = false
+local node_hovered_id = 0
+local node_map = {}
+
+
+local active_tree = nil
+local last_time = 0.0
+local delta_time = 0.0
+
+local function get_tree_node(tree, id)
+    return tree.nodes[id+1]
+end
+
+local function draw_node(idx, seen, depth)
+    seen = seen or {}
+    depth = depth or 0
+    if seen[idx] then return end
+    if not custom_tree[idx] then return end
+    
+    local custom_id = nil
+
+    if active_tree ~= nil then
+        local node = get_tree_node(active_tree, idx)
+        if node == nil then
+            return
+        end
+
+        custom_id = node.id
     end
-    draw_node_action(node.id, node.name)
-    local children = node.children
-    if children then
-        local node_pos = imnodeed.GetNodePosition(node.id)
-        local node_dims = imnodeed.GetNodeSize(node.id)
-        for j, child_id in ipairs(children) do
-            local child = actionTree.nodes[child_id + 1]
+    local node_descriptor = custom_tree[idx]
+    local node = draw_standard_node(
+        "[" .. tostring(idx) .. "]" .. node_descriptor.name, 
+        custom_id,
+        function()
+            if not node_map[idx] then return end
+
+            if active_tree then
+                --imgui.text(tostring(active_tree:get_node(i)))
+                --if imgui.begin_child_window("Test" .. tostring(i), 100, 100) then
+                    -- display_node(active_tree, active_tree:get_node(i))
+                    --imgui.end_child_window()
+                --end
+            end
+        end
+    )
+
+    node_map[idx] = node
+
+    local active = false
+
+    -- if active_tree ~= nil then
+    --     local real_node = active_tree:get_node(i)
+
+    --     active = real_node:get_status1() == 2 or real_node:get_status2() == 2
+    -- end
+    
+    -- Draw children and compute space requirements
+    local node_pos = imnodeed.GetNodePosition(node.id)
+    local node_dims = imnodeed.GetNodeSize(node.id)
+
+    local size = { x=0, y=0 }
+
+    for j, child_id in ipairs(node_descriptor.children) do
+        local child, node_dim_requirements, child_active = draw_node(child_id, seen, depth + 1)
+        if child then
             -- Y needs to be dynamic
             local child_render_pos = {
-                x = node_pos.x + 50,
-                y = node_pos.y + j*50
+                x = node_pos.x + node_dims.x + 20,
+                y = node_pos.y + size.y
                 --y = node_pos.y - ((#node_descriptor.children - 1) * (node_dims.y / 2)) + node_dim_requirements.y + ((j-1) * node_dims.y)
             }
-
-            imnodeed.SetNodePosition(child.id, {child_render_pos.x, child_render_pos.y})
-            draw_tree_node(child)
+    
+            if not unlock_node_positioning then
+                if cfg.lerp_nodes then
+                    local current_child_pos = imnodeed.GetNodePosition(child.id)
+    
+                    local crp = Vector2f.new(child_render_pos.x, child_render_pos.y)
+                    local dist = (current_child_pos - crp):length()
+    
+                    if dist < 20 then
+                        crp = current_child_pos + ((crp - current_child_pos) * math.min(delta_time, 0.5))
+                    else
+                        crp = current_child_pos + ((crp - current_child_pos):normalized() * math.min(math.min(delta_time, 0.5) * dist * cfg.lerp_speed * 10.0, dist))
+                    end
+    
+                    imnodeed.SetNodePosition(child.id, {crp.x, crp.y})
+                else
+                    imnodeed.SetNodePosition(child.id, {child_render_pos.x, child_render_pos.y})
+                end
+            end
+    
+            local link_id = imgui.get_id(node_descriptor.name .. custom_tree[child_id].name .. "LINK")
+    
+            -- if node_is_hovered then
+            --     if node_hovered_id == node_map[idx].id then
+            --         draw_link(false, link_id, node_map[idx].outputs[1], node_map[child_id].inputs[1])
+            --     end
+    
+            --     if node_hovered_id == node_map[child_id].id then
+            --         draw_link(false, link_id, node_map[idx].outputs[1], node_map[child_id].inputs[1])
+            --     end
+            -- elseif active and child_active then
+            --     draw_link(active, link_id, node_map[idx].outputs[1], node_map[child_id].inputs[1])
+            -- end
+            draw_link(active, link_id, node_map[idx].outputs[1], node_map[child_id].inputs[1])
+    
+            size.x = size.x + node_dim_requirements.x
+            size.y = size.y + node_dim_requirements.y            
         end
     end
+
+    -- Only add the node dimensions to the out dim requirements
+    -- if the node has no children, meaning it's the end of the chain
+    if #node_descriptor.children == 0 then
+        size.y = size.y + node_dims.y + 5
+    else
+        if node_dims.y > size.y then
+            size.y = node_dims.y + 5
+        end
+    end
+
+    return node, size, active
 end
 
 local function draw_tree()
-    if not actionTree then
+    if not active_tree then
         imgui.text("actionTree is nil")
         return
     end
-    local rootNode = actionTree.nodes[1]
-    if rootNode then
-        -- imnodeed.SetNodePosition(rootNode.id, {0, 0})
-        draw_tree_node(rootNode)
+    -- draw_node draws all children, so only draw the root node
+    if cfg.default_node == 0 then
+        if custom_tree[0] then
+            if node_map[0] and not unlock_node_positioning then
+                imnodeed.SetNodePosition(node_map[0].id, {0, 0})
+            end
+
+            local node, req, active = draw_node(0)
+        else
+            if node_map[1] and not unlock_node_positioning then
+                imnodeed.SetNodePosition(node_map[1].id, {0, 0})
+            end
+
+            draw_node(1)
+        end
+    else
+        draw_node(cfg.default_node)
     end
+
+    node_is_hovered, node_hovered_id = imnodeed.IsNodeHovered()
+    node_hovered_id = node_hovered_id & 0xFFFFFFFF
 end
 
 local function draw_editor(name)
@@ -145,10 +412,26 @@ local function draw_editor(name)
     -- if ret then
     --     file_path = v
     -- end
-    if imgui.button("load") then
-        load_action_file(file_path)
-    end
     xpcall(function()
+        if imgui.button("Load") then
+            local tree = load_action_file(file_path)
+            if tree then
+                recreate_globals()
+        
+                custom_tree = {}
+                updated_tree = true
+                active_tree = tree
+                
+                for i, node in ipairs(active_tree.nodes) do    
+                    local insertion = {
+                        name = node.name,
+                        children = node.children
+                    }
+    
+                    custom_tree[i-1] = insertion
+                end
+            end
+        end
         imnodeed.SetCurrentEditor(m_Context)
         imnodeed.Begin("Action Tree Editor", Vector2f.new(0, 0))
         draw_tree()
@@ -163,17 +446,17 @@ end
 
 
 actionEditorFunc = function()
-    imgui.push_style_var(ImGuiStyleVar.ImGuiStyleVar_WindowRounding, 10.0)
+    -- imgui.push_style_var(ImGuiStyleVar.ImGuiStyleVar_WindowRounding, 10.0)
+    
+    delta_time = os.clock() - last_time
 
     local disp_size = imgui.get_display_size()
     imgui.set_next_window_size({EDITOR_SIZE.x, EDITOR_SIZE.y}, 1 << 1) -- ImGuiCond_Once
     imgui.set_next_window_pos({disp_size.x / 2 - (EDITOR_SIZE.x / 2), disp_size.y / 2 - (EDITOR_SIZE.y / 2)}, 1 << 1)
     
-    xpcall(function()
-        draw_editor("Action Editor")
-    end, G_LUA_ON_ERROR)
+    draw_editor("Action Tree Editor")
 
     last_time = os.clock()
 
-    imgui.pop_style_var()
+    -- imgui.pop_style_var()
 end

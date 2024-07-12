@@ -72,6 +72,7 @@ struct App:
             sol::lib::bit32,
             sol::lib::utf8,
             sol::lib::os,
+            sol::lib::debug,
             sol::lib::coroutine
         );
 

@@ -1,10 +1,11 @@
 {
-    "version": 2,
+    "version": 6,
     "configurePresets": [
         {
             "name": "vcpkg",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build",
+            "hidden": true,
+            "displayName": "base Configuration",
+            "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
             }

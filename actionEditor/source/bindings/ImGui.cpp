@@ -14,7 +14,6 @@
 
 #include <spdlog/spdlog.h>
 
-#define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
 #include "ImGui.hpp"
@@ -1900,7 +1899,17 @@ void bindings::open_imgui(sol::state& lua) {
     limgui["tree_node_ptr_id"] = api::imgui::tree_node_ptr_id;
     limgui["tree_node_str_id"] = api::imgui::tree_node_str_id;
     limgui["tree_pop"] = api::imgui::tree_pop;
-    limgui["same_line"] = api::imgui::same_line;
+    limgui["same_line"] = sol::overload( 
+        [](sol::this_state s) {
+            ImGui::SameLine();
+        },
+        [](sol::this_state s, float offset_from_start_x) {
+            ImGui::SameLine(offset_from_start_x);
+        },
+        [](sol::this_state s, float offset_from_start_x=0.0f, float spacing=-1.0f) {
+            ImGui::SameLine(offset_from_start_x, spacing);
+        }
+    );
     limgui["is_item_hovered"] = api::imgui::is_item_hovered;
     limgui["is_item_active"] = api::imgui::is_item_active;
     limgui["is_item_focused"] = api::imgui::is_item_focused;
