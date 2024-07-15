@@ -24,7 +24,7 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
-#include <fmt/core.h>
+#include <spdlog/spdlog.h>
 
 #include <fstream>
 #include <iostream>
@@ -81,169 +81,174 @@ struct App:
         bindings::open_fs(m_lua);
 
         // clang-format off
-    // add vec2 usertype
-    m_lua.new_usertype<Vector2f>("Vector2f",
-        sol::meta_function::construct, sol::constructors<Vector4f(float, float)>(),
-        "clone", [](Vector2f& v) -> Vector2f { return v; },
-        "x", &Vector2f::x, 
-        "y", &Vector2f::y, 
-        "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
-        "length", [](Vector2f& v) { return glm::length(v); },
-        "normalize", [](Vector2f& v) { v = glm::normalize(v); },
-        "normalized", [](Vector2f& v) { return glm::normalize(v); },
-        sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
-        sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; },
-        "to_vec3", [](Vector2f& v) { return Vector3f{v.x, v.y, 0.0f}; },
-        "to_vec4", [](Vector2f& v) { return Vector4f{v.x, v.y, 0.0f, 0.0f}; });
+        // add vec2 usertype
+        m_lua.new_usertype<Vector2f>("Vector2f",
+            sol::meta_function::construct, sol::constructors<Vector4f(float, float)>(),
+            "clone", [](Vector2f& v) -> Vector2f { return v; },
+            "x", &Vector2f::x, 
+            "y", &Vector2f::y, 
+            "dot", [](Vector2f& v1, Vector2f& v2) { return glm::dot(v1, v2); },
+            "length", [](Vector2f& v) { return glm::length(v); },
+            "normalize", [](Vector2f& v) { v = glm::normalize(v); },
+            "normalized", [](Vector2f& v) { return glm::normalize(v); },
+            sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
+            sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
+            sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; },
+            "to_vec3", [](Vector2f& v) { return Vector3f{v.x, v.y, 0.0f}; },
+            "to_vec4", [](Vector2f& v) { return Vector4f{v.x, v.y, 0.0f, 0.0f}; });
 
-    // add vec3 usertype
-    m_lua.new_usertype<Vector3f>("Vector3f",
-        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
-        "clone", [](Vector3f& v) -> Vector3f { return v; },
-        "x", &Vector3f::x,
-        "y", &Vector3f::y,
-        "z", &Vector3f::z,
-        "dot", [](Vector3f& v1, Vector3f& v2) { return glm::dot(v1, v2); },
-        "cross", [](Vector3f& v1, Vector3f& v2) { return glm::cross(v1, v2); },
-        "length", [](Vector3f& v) { return glm::length(v); },
-        "normalize", [](Vector3f& v) { v = glm::normalize(v); },
-        "normalized", [](Vector3f& v) { return glm::normalize(v); },
-        "reflect", [](Vector3f& v, Vector3f& normal) { return glm::reflect(v, normal); },
-        "refract", [](Vector3f& v, Vector3f& normal, float eta) { return glm::refract(v, normal, eta); },
-        "lerp", [](Vector3f& v1, Vector3f& v2, float t) { return glm::lerp(v1, v2, t); },
-        sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
-        sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
-        "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
-        "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; },
-        "to_mat", [](Vector3f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f})); },
-        "to_quat", [](Vector3f& v) { 
-            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f}));
+        // add vec3 usertype
+        m_lua.new_usertype<Vector3f>("Vector3f",
+            sol::meta_function::construct, sol::constructors<Vector4f(float, float, float)>(),
+            "clone", [](Vector3f& v) -> Vector3f { return v; },
+            "x", &Vector3f::x,
+            "y", &Vector3f::y,
+            "z", &Vector3f::z,
+            "dot", [](Vector3f& v1, Vector3f& v2) { return glm::dot(v1, v2); },
+            "cross", [](Vector3f& v1, Vector3f& v2) { return glm::cross(v1, v2); },
+            "length", [](Vector3f& v) { return glm::length(v); },
+            "normalize", [](Vector3f& v) { v = glm::normalize(v); },
+            "normalized", [](Vector3f& v) { return glm::normalize(v); },
+            "reflect", [](Vector3f& v, Vector3f& normal) { return glm::reflect(v, normal); },
+            "refract", [](Vector3f& v, Vector3f& normal, float eta) { return glm::refract(v, normal, eta); },
+            "lerp", [](Vector3f& v1, Vector3f& v2, float t) { return glm::lerp(v1, v2, t); },
+            sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
+            sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
+            sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
+            "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
+            "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; },
+            "to_mat", [](Vector3f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f})); },
+            "to_quat", [](Vector3f& v) { 
+                auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f}));
 
-            return glm::quat{mat};
-        });
+                return glm::quat{mat};
+            });
 
-    // add vec4 usertype
-    m_lua.new_usertype<Vector4f>("Vector4f",
-        sol::meta_function::construct, sol::constructors<Vector4f(float, float, float, float)>(),
-        "clone", [](Vector4f& v) -> Vector4f { return v; },
-        "x", &Vector4f::x,
-        "y", &Vector4f::y,
-        "z", &Vector4f::z,
-        "w", &Vector4f::w,
-        "dot", [](Vector4f& v1, Vector4f& v2) { return glm::dot(v1, v2); },
-        "cross", [](Vector4f& v1, Vector4f& v2) { return glm::cross(Vector3f{v1.x, v1.y, v1.z}, Vector3f{v2.x, v2.y, v2.z}); },
-        "length", [](Vector4f& v) { return glm::length(v); },
-        "normalize", [](Vector4f& v) { v = glm::normalize(v); },
-        "normalized", [](Vector4f& v) { return glm::normalize(v); },
-        "reflect", [](Vector4f& v, Vector4f& normal) { return glm::reflect(v, normal); },
-        "refract", [](Vector4f& v, Vector4f& normal, float eta) { return glm::refract(v, normal, eta); },
-        "lerp", [](Vector4f& v1, Vector4f& v2, float t) { return glm::lerp(v1, v2, t); },
-        sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
-        sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
-        "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
-        "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; },
-        "to_mat", [](Vector4f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f})); },
-        "to_quat", [](Vector4f& v) { 
-            auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f}));
+        // add vec4 usertype
+        m_lua.new_usertype<Vector4f>("Vector4f",
+            sol::meta_function::construct, sol::constructors<Vector4f(float, float, float, float)>(),
+            "clone", [](Vector4f& v) -> Vector4f { return v; },
+            "x", &Vector4f::x,
+            "y", &Vector4f::y,
+            "z", &Vector4f::z,
+            "w", &Vector4f::w,
+            "dot", [](Vector4f& v1, Vector4f& v2) { return glm::dot(v1, v2); },
+            "cross", [](Vector4f& v1, Vector4f& v2) { return glm::cross(Vector3f{v1.x, v1.y, v1.z}, Vector3f{v2.x, v2.y, v2.z}); },
+            "length", [](Vector4f& v) { return glm::length(v); },
+            "normalize", [](Vector4f& v) { v = glm::normalize(v); },
+            "normalized", [](Vector4f& v) { return glm::normalize(v); },
+            "reflect", [](Vector4f& v, Vector4f& normal) { return glm::reflect(v, normal); },
+            "refract", [](Vector4f& v, Vector4f& normal, float eta) { return glm::refract(v, normal, eta); },
+            "lerp", [](Vector4f& v1, Vector4f& v2, float t) { return glm::lerp(v1, v2, t); },
+            sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
+            sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
+            sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
+            "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
+            "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; },
+            "to_mat", [](Vector4f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f})); },
+            "to_quat", [](Vector4f& v) { 
+                auto mat = glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f}));
 
-            return glm::quat{mat};
-        });
+                return glm::quat{mat};
+            });
 
-    // add Matrix4x4f (glm::mat4) usertype
-    m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
-        sol::meta_function::construct, 
-         sol::constructors<
-         Matrix4x4f(),
-         Matrix4x4f(const Vector4f&, const Vector4f&, const Vector4f&, const Vector4f&),
-         Matrix4x4f(float, float, float, float,
-                    float, float, float, float,
-                    float, float, float, float,
-                    float, float, float, float)
-        >(),
-        "clone", [](Matrix4x4f& m) -> Matrix4x4f { return m; },
-        "identity", []() { return glm::identity<Matrix4x4f>(); },
-        "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
-        "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
-        "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
-        "interpolate", [](Matrix4x4f& m1, Matrix4x4f& m2, float t) { return glm::interpolate(m1, m2, t); },
-        "matrix_rotation", [](Matrix4x4f& m) { return glm::extractMatrixRotation(m); },
-        sol::meta_function::multiplication, sol::overload(
-            [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
-                return lhs * rhs;
+        // add Matrix4x4f (glm::mat4) usertype
+        m_lua.new_usertype<Matrix4x4f>("Matrix4x4f",
+            sol::meta_function::construct, 
+            sol::constructors<
+            Matrix4x4f(),
+            Matrix4x4f(const Vector4f&, const Vector4f&, const Vector4f&, const Vector4f&),
+            Matrix4x4f(float, float, float, float,
+                        float, float, float, float,
+                        float, float, float, float,
+                        float, float, float, float)
+            >(),
+            "clone", [](Matrix4x4f& m) -> Matrix4x4f { return m; },
+            "identity", []() { return glm::identity<Matrix4x4f>(); },
+            "to_quat", [] (Matrix4x4f& m) { return glm::quat(m); },
+            "inverse", [] (Matrix4x4f& m) { return glm::inverse(m); },
+            "invert", [] (Matrix4x4f& m) { m = glm::inverse(m); },
+            "interpolate", [](Matrix4x4f& m1, Matrix4x4f& m2, float t) { return glm::interpolate(m1, m2, t); },
+            "matrix_rotation", [](Matrix4x4f& m) { return glm::extractMatrixRotation(m); },
+            sol::meta_function::multiplication, sol::overload(
+                [](Matrix4x4f& lhs, Matrix4x4f& rhs) {
+                    return lhs * rhs;
+                },
+                [](Matrix4x4f& lhs, Vector4f& rhs) {
+
+                    return lhs * rhs;
+                }
+            ),
+            sol::meta_function::index, [](sol::this_state s, Matrix4x4f& lhs, sol::object index_obj) -> sol::object {
+                if (!index_obj.is<int>()) {
+                    return sol::make_object(s, sol::lua_nil);
+                }
+
+                const auto index = index_obj.as<int>();
+
+                if (index >= 4) {
+                    return sol::make_object(s, sol::lua_nil);
+                }
+
+                return sol::make_object(s, &lhs[index]);
             },
-            [](Matrix4x4f& lhs, Vector4f& rhs) {
-
-                return lhs * rhs;
+            sol::meta_function::new_index, [](Matrix4x4f& lhs, int index, Vector4f& rhs) {
+                lhs[index] = rhs;
             }
-        ),
-        sol::meta_function::index, [](sol::this_state s, Matrix4x4f& lhs, sol::object index_obj) -> sol::object {
-            if (!index_obj.is<int>()) {
-                return sol::make_object(s, sol::lua_nil);
-            }
+        );
 
-            const auto index = index_obj.as<int>();
+        // add glm::quat usertype
+        m_lua.new_usertype<glm::quat>("Quaternion",
+            sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
+            "clone", [](glm::quat& q) -> glm::quat { return q; },
+            "identity", []() { return glm::identity<glm::quat>(); },
+            "x", &glm::quat::x,
+            "y", &glm::quat::y,
+            "z", &glm::quat::z,
+            "w", &glm::quat::w,
+            "to_mat4", [](glm::quat& q) { return Matrix4x4f{q}; },
+            "inverse", [](glm::quat& q) { return glm::inverse(q); },
+            "invert", [](glm::quat& q) { q = glm::inverse(q); },
+            "normalize", [](glm::quat& q) { q = glm::normalize(q); },
+            "normalized", [](glm::quat& q) { return glm::normalize(q); },
+            "slerp", [](glm::quat& q1, glm::quat& q2, float t) { return glm::slerp(q1, q2, t); },
+            "dot", [](glm::quat& q1, glm::quat& q2) { return glm::dot(q1, q2); },
+            "length", [](glm::quat& q) { return glm::length(q); },
+            "conjugate", [](glm::quat& q) { return glm::conjugate(q); },
+            sol::meta_function::multiplication, sol::overload( 
+                [](glm::quat& lhs, glm::quat& rhs) -> glm::quat {
+                    return lhs * rhs;
+                },
+                [](glm::quat& lhs, Vector3f& rhs) -> Vector3f {
+                    return lhs * rhs;
+                },
+                [](glm::quat& lhs, Vector4f& rhs) -> Vector4f {
+                    return lhs * rhs;
+                }
+            ),
+            sol::meta_function::index, [](sol::this_state s, glm::quat& lhs, sol::object index_obj) -> sol::object {
+                if (!index_obj.is<int>()) {
+                    return sol::make_object(s, sol::lua_nil);
+                }
 
-            if (index >= 4) {
-                return sol::make_object(s, sol::lua_nil);
-            }
+                const auto index = index_obj.as<int>();
 
-            return sol::make_object(s, &lhs[index]);
-        },
-        sol::meta_function::new_index, [](Matrix4x4f& lhs, int index, Vector4f& rhs) {
-            lhs[index] = rhs;
-        }
-    );
+                if (index >= 4) {
+                    return sol::make_object(s, sol::lua_nil);
+                }
 
-    // add glm::quat usertype
-    m_lua.new_usertype<glm::quat>("Quaternion",
-        sol::meta_function::construct, sol::constructors<glm::quat(), glm::quat(float, float, float, float), glm::quat(const Vector3f&)>(),
-        "clone", [](glm::quat& q) -> glm::quat { return q; },
-        "identity", []() { return glm::identity<glm::quat>(); },
-        "x", &glm::quat::x,
-        "y", &glm::quat::y,
-        "z", &glm::quat::z,
-        "w", &glm::quat::w,
-        "to_mat4", [](glm::quat& q) { return Matrix4x4f{q}; },
-        "inverse", [](glm::quat& q) { return glm::inverse(q); },
-        "invert", [](glm::quat& q) { q = glm::inverse(q); },
-        "normalize", [](glm::quat& q) { q = glm::normalize(q); },
-        "normalized", [](glm::quat& q) { return glm::normalize(q); },
-        "slerp", [](glm::quat& q1, glm::quat& q2, float t) { return glm::slerp(q1, q2, t); },
-        "dot", [](glm::quat& q1, glm::quat& q2) { return glm::dot(q1, q2); },
-        "length", [](glm::quat& q) { return glm::length(q); },
-        "conjugate", [](glm::quat& q) { return glm::conjugate(q); },
-        sol::meta_function::multiplication, sol::overload( 
-            [](glm::quat& lhs, glm::quat& rhs) -> glm::quat {
-                return lhs * rhs;
+                return sol::make_object(s, lhs[index]);
             },
-            [](glm::quat& lhs, Vector3f& rhs) -> Vector3f {
-                return lhs * rhs;
-            },
-            [](glm::quat& lhs, Vector4f& rhs) -> Vector4f {
-                return lhs * rhs;
+            sol::meta_function::new_index, [](glm::quat& lhs, int index, float rhs) {
+                lhs[index] = rhs;
             }
-        ),
-        sol::meta_function::index, [](sol::this_state s, glm::quat& lhs, sol::object index_obj) -> sol::object {
-            if (!index_obj.is<int>()) {
-                return sol::make_object(s, sol::lua_nil);
-            }
+        );
 
-            const auto index = index_obj.as<int>();
-
-            if (index >= 4) {
-                return sol::make_object(s, sol::lua_nil);
-            }
-
-            return sol::make_object(s, lhs[index]);
-        },
-        sol::meta_function::new_index, [](glm::quat& lhs, int index, float rhs) {
-            lhs[index] = rhs;
-        }
-    );
-
+        const std::string package_path = m_lua["package"]["path"];
+        const auto currPath = std::filesystem::path();
+        spdlog::info("fs::current_path(): {}", std::filesystem::current_path().string());
+        const std::string curr_lua_path = std::filesystem::current_path().string() + "/data/?.lua";
+        m_lua["package"]["path"] = package_path + ";" + curr_lua_path;
         m_lua.script_file("data/actionEditor.lua");
     }
 

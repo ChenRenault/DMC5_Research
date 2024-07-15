@@ -1,5 +1,5 @@
 
-
+require ("imgui_ext")
 
 
 function G_LUA_ON_ERROR(err)
@@ -117,6 +117,8 @@ end
 local node_replacements = {
 
 }
+local selected_action_node_id = nil
+local custom_tree_indices_map = {}
 
 -- local TAB = imgui.get_key_index(0)
 -- local LEFT_ARROW = imgui.get_key_index(1)
@@ -201,6 +203,9 @@ local function draw_stupid_node(name, custom_id, render_inputs_cb, render_output
     end
 
     imnodeed.EndNode()
+    if imgui.IsItemClicked() then
+        selected_action_node_id = custom_id
+    end
 
     return out
 end
@@ -402,6 +407,19 @@ local function draw_tree()
     node_hovered_id = node_hovered_id & 0xFFFFFFFF
 end
 
+
+local function reconstruct_node(active_tree, node)
+    if not node then
+        return
+    end
+    if node.actions and not node.actions_r then
+        node.actions_r = {}
+        for index, value in ipairs(node.actions) do
+            node.actions_r[index] = active_tree.actions[value]
+        end
+    end
+end
+
 local function draw_editor(name)
     if not imgui.begin_window(name, true, 1 << 10) then return end
 
@@ -421,14 +439,17 @@ local function draw_editor(name)
                 custom_tree = {}
                 updated_tree = true
                 active_tree = tree
+                custom_tree_indices_map = {}
                 
                 for i, node in ipairs(active_tree.nodes) do    
                     local insertion = {
                         name = node.name,
                         children = node.children
                     }
+                    reconstruct_node(active_tree, node)
     
                     custom_tree[i-1] = insertion
+                    custom_tree_indices_map[node.id] = i-1
                 end
             end
         end
@@ -450,6 +471,18 @@ actionEditorFunc = function()
     
     delta_time = os.clock() - last_time
 
+    imgui.begin_window("SidePanel", true)
+    xpcall(function()
+        imgui.h_dumpVisitLuaValueWithConfig(active_tree, "active_tree")
+        imgui.text(string.format("selected_action_node_id %s", tostring(selected_action_node_id)))
+        if selected_action_node_id and custom_tree_indices_map[selected_action_node_id] then
+            local node = get_tree_node(active_tree, custom_tree_indices_map[selected_action_node_id])
+            if node then
+                imgui.h_dumpVisitLuaValueWithConfig(node, "selectedActionNode")
+            end
+        end
+    end, G_LUA_ON_ERROR)
+    imgui.end_window()
     local disp_size = imgui.get_display_size()
     imgui.set_next_window_size({EDITOR_SIZE.x, EDITOR_SIZE.y}, 1 << 1) -- ImGuiCond_Once
     imgui.set_next_window_pos({disp_size.x / 2 - (EDITOR_SIZE.x / 2), disp_size.y / 2 - (EDITOR_SIZE.y / 2)}, 1 << 1)

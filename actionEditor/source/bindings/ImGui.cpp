@@ -418,6 +418,16 @@ void tree_pop() {
     ImGui::TreePop();
 }
 
+bool TreeNodeEx(const void* id, int flags, const char* label)
+{
+    return ImGui::TreeNodeEx(id, flags, label);
+}
+
+bool BeginPopupContextItem(const char* id)
+{
+    return ImGui::BeginPopupContextItem(id);
+}
+
 void same_line(sol::this_state s, float offset_from_start_x=0.0f, float spacing=-1.0f) {
     ImGui::SameLine(offset_from_start_x, spacing);
 }
@@ -430,6 +440,10 @@ bool is_item_hovered(sol::object flags_obj) {
     }
 
     return ImGui::IsItemHovered(flags);
+}
+
+bool IsItemClicked() {
+    return ImGui::IsItemClicked();
 }
 
 bool is_item_active() {
@@ -491,6 +505,10 @@ void begin_group() {
 
 void end_group() {
     ImGui::EndGroup();
+}
+
+void AlignTextToFramePadding() {
+
 }
 
 void begin_rect() {
@@ -1891,6 +1909,8 @@ void bindings::open_imgui(sol::state& lua) {
     limgui["slider_float"] = api::imgui::slider_float;
     limgui["slider_int"] = api::imgui::slider_int;
     limgui["input_text"] = api::imgui::input_text;
+    limgui["inputText"] = api::imgui::input_text;
+    limgui["InputText"] = api::imgui::input_text;
     limgui["input_text_multiline"] = api::imgui::input_text_multiline;
     limgui["text"] = api::imgui::text;
     limgui["text_colored"] = api::imgui::text_colored;
@@ -1899,6 +1919,8 @@ void bindings::open_imgui(sol::state& lua) {
     limgui["tree_node_ptr_id"] = api::imgui::tree_node_ptr_id;
     limgui["tree_node_str_id"] = api::imgui::tree_node_str_id;
     limgui["tree_pop"] = api::imgui::tree_pop;
+    limgui["TreeNodeEx"] = api::imgui::TreeNodeEx;
+    limgui["TreePop"] = limgui["tree_pop"];
     limgui["same_line"] = sol::overload( 
         [](sol::this_state s) {
             ImGui::SameLine();
@@ -1910,8 +1932,11 @@ void bindings::open_imgui(sol::state& lua) {
             ImGui::SameLine(offset_from_start_x, spacing);
         }
     );
+    limgui["SameLine"] = limgui["same_line"];
+    limgui["AlignTextToFramePadding"] = api::imgui::AlignTextToFramePadding;
     limgui["is_item_hovered"] = api::imgui::is_item_hovered;
     limgui["is_item_active"] = api::imgui::is_item_active;
+    limgui["IsItemClicked"] = api::imgui::IsItemClicked;
     limgui["is_item_focused"] = api::imgui::is_item_focused;
     limgui["begin_window"] = api::imgui::begin_window;
     limgui["end_window"] = api::imgui::end_window;
@@ -1943,8 +1968,11 @@ void bindings::open_imgui(sol::state& lua) {
     limgui["set_next_window_pos"] = api::imgui::set_next_window_pos;
     limgui["set_next_window_size"] = api::imgui::set_next_window_size;
     limgui["push_id"] = api::imgui::push_id;
+    limgui["PushID"] = limgui["push_id"];
     limgui["pop_id"] = api::imgui::pop_id;
+    limgui["PopID"] = limgui["pop_id"];
     limgui["get_id"] = api::imgui::get_id;
+    limgui["GetID"] = limgui["get_id"];
     limgui["get_mouse"] = api::imgui::get_mouse;
     limgui["get_key_index"] = api::imgui::get_key_index;
     limgui["is_key_down"] = api::imgui::is_key_down;
@@ -1966,6 +1994,8 @@ void bindings::open_imgui(sol::state& lua) {
     limgui["end_popup"] = api::imgui::end_popup;
     limgui["close_current_popup"] = api::imgui::close_current_popup;
     limgui["is_popup_open"] = api::imgui::is_popup_open;
+    limgui["BeginPopupContextItem"] = api::imgui::BeginPopupContextItem;
+    limgui["EndPopup"] = limgui["end_popup"];
     limgui["calc_text_size"] = api::imgui::calc_text_size;
     limgui["get_window_size"] = api::imgui::get_window_size;
     limgui["get_window_pos"] = api::imgui::get_window_pos;
