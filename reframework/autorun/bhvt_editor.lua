@@ -587,7 +587,7 @@ end
 
 local gn = reframework:get_game_name()
 
-local function get_localplayerGO()
+local function get_localPlayerGO()
     if gn == "re2" or gn == "re3" then
         local player_manager = sdk.get_managed_singleton(sdk.game_namespace("PlayerManager"))
         if player_manager == nil then return nil end
@@ -2355,54 +2355,73 @@ local function display_UserVariables(uvarList)
     imgui.end_table()
 end
 
+local function display_Fields(obj, fieldNameList)
+    imgui.begin_table("##ObjectFieldsTable"..tostring(obj), 2, 1920)
+    imgui.table_setup_scroll_freeze(0, 1);
+    imgui.table_setup_column("Name", 16, 256);
+    imgui.table_setup_column("Value", 16);
+    imgui.table_headers_row();
+    for i, name in ipairs(fieldNameList) do
+        local id = tostring(i)
+        local value = obj:get_field(name)
+        imgui.push_id(id)
+        imgui.table_next_column()
+        imgui.text(tostring(name))
+        imgui.table_next_column()
+        imgui.text(tostring(value))
+        imgui.pop_id()
+    end
+    imgui.end_table()
+end
+
+local function push_field_names(fields, field_names)
+    for i, field_desc in ipairs(fields) do
+        local field_t = field_desc:get_type()
+        -- if field_t:is_value_type() then
+            local field_name = field_desc:get_name()
+            table.insert(field_names, field_name)
+        -- end
+    end
+end
+
+local function get_field_names_of_type(obj_type, field_names, includeParent)
+    push_field_names(obj_type:get_fields(), field_names)
+    if includeParent then
+        local pt = obj_type:get_parent_type()
+        while pt do
+            push_field_names( pt:get_fields(), field_names)
+            pt = pt:get_parent_type()
+        end
+    end
+    return field_names
+end
+
+local player_field_name_list = {
+    
+}
+
+-- get_field_names_of_type(sdk.find_type_definition("app.PlayerVergilPL"), player_field_name_list, true)
+
+local player_field_name_list_base = {
+    "<nodeID>k__BackingField",
+    "<nowActionName>k__BackingField",
+    "<nowActionNameFull>k__BackingField",
+    "<oldActionName>k__BackingField",
+    "<oldActionNameFull>k__BackingField",
+    "<commandComboType>k__BackingField",
+    "<commnadReserveType>k__BackingField",
+    "<isJudgeMentCutJR>k__BackingField",
+    "JudgementCutJR_EnableCount",
+}
+for i, v in ipairs(player_field_name_list_base) do
+    table.insert(player_field_name_list, v)
+end
+
+local PlayerVergilPLTrack_fields = {}
+get_field_names_of_type(sdk.find_type_definition("app.PlayerVergilPLTrack"), PlayerVergilPLTrack_fields, true)
+
 local function display_internal_handle_body(layer, tree, i)
     object_explorer:handle_address(layer)
-
-    if imgui.tree_node("UserVariables(Player)") then
-        local playerGO = get_localplayerGO()
-        local player = get_localPlayer()
-        local motion = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
-        local uvar_hub = motion:get_VariablesHub()
-        -- object_explorer:handle_address(player)
-        -- object_explorer:handle_address(uvar_hub)
-        if uvar_hub then
-            local uvarList = {}
-            local varsCount = uvar_hub:getUserVariablesCount()
-            local count = uvar_hub:get_VariableSum()
-            imgui.text(string.format("getUserVariablesCount: %s", tostring(varsCount)))
-            imgui.text(string.format("VariableSum: %s", tostring(count)))
-            for i = 1, count do
-                local uvar = uvar_hub:getVariableFromIndex(i-1)
-                local name = string.lower(uvar:get_Name())
-                local show = name:find("combo") or name:find("attack") or name:find("allcancel")
-                if show then
-                    table.insert(uvarList, uvar)
-                end
-            end
-            display_UserVariables(uvarList)
-        end
-        imgui.tree_pop()
-    end
-
-    if imgui.tree_node("UserVariables(Tree Layer)") then
-        local uvar_hub = layer:get_UserVariable() -- why isn't this the same as the tree?
-        local varsCount = uvar_hub:getUserVariablesCount()
-        local count = uvar_hub:get_VariableSum()
-        imgui.text(string.format("getUserVariablesCount: %s", tostring(varsCount)))
-        local uvarList = {}
-        imgui.text(string.format("VariableSum: %s", tostring(count)))
-        for i = 1, count do
-            local uvar = uvar_hub:getVariableFromIndex(i-1)
-            local name = string.lower(uvar:get_Name())
-            local show = name:find("combo") or name:find("attack") or name:find("allcancel")
-            if show then
-                table.insert(uvarList, uvar)
-            end
-        end
-        display_UserVariables(uvarList)
-        imgui.tree_pop()
-    end
-
     imgui.input_text("MotionFsm2Resource", string.format("%x", layer:call("get_MotionFsm2Resource"):read_qword(0x10)))
 
     display_tree(layer, tree)
@@ -2423,7 +2442,7 @@ end
 local custom_addr = 0
 
 re.on_draw_ui(function()
-    local player = get_localplayerGO()
+    local player = get_localPlayerGO()
     if not player then return end
 
     local motion_fsm2 = player:call("getComponent(System.Type)", sdk.typeof("via.motion.MotionFsm2"))
@@ -3470,12 +3489,21 @@ local function draw_world_point(pos)
     end
 end
 
+local EDITOR_SIZE = {
+    x = math.max(imgui.get_display_size().x - 100, 640),
+    y = math.max(imgui.get_display_size().y - 100, 480)
+}
+
+local openend_player_PlayerInfo = true
+local openend_player_Fields = true
+local openend_player_UserVariables = true
+local openend_tree_UserVariables = true
 local function draw_stupid_editor(name)
     if cfg.graph_closes_with_reframework then
         if not reframework:is_drawing_ui() then return end
     end
     local camera = sdk.get_primary_camera()
-    local playerGO, player = get_localplayerGO()
+    local playerGO, player = get_localPlayerGO()
     -- if camera and playerGO and player then
     --     local width = statics.width
     --     local height = statics.height
@@ -3517,11 +3545,101 @@ local function draw_stupid_editor(name)
     --     end
     -- end
 
+    if playerGO and player then
+        openend_player_PlayerInfo = imgui.begin_window("Player##PlayerInfo", openend_player_PlayerInfo, 1 << 10)
+        if openend_player_PlayerInfo then
+            if imgui.tree_node("Player") then
+                object_explorer:handle_address(player:get_address())
+                imgui.tree_pop()
+            end
+            local fieldNames = {
+                "<commandManager>k__BackingField",
+                "<shellAddTrack>k__BackingField",
+                "<shellBaseTrack>k__BackingField",
+                "<shellOverrideTrack>k__BackingField",
+            }
+            for _, fieldName in ipairs(fieldNames) do
+                local fieldObj = player:get_field(fieldName)
+                if fieldObj then
+                    if imgui.tree_node(fieldName) then
+                        object_explorer:handle_address(fieldObj:get_address())
+                        imgui.tree_pop()
+                    end
+                end
+            end
+            imgui.end_window()
+        end
+        
+        openend_player_Fields = imgui.begin_window("Fields(Player)", openend_player_Fields, 1 << 10)
+        if openend_player_Fields then
+            display_Fields(player, player_field_name_list)
+            local vergilTrack = player:get_field("<vergilTrack>k__BackingField")
+            display_Fields(vergilTrack, PlayerVergilPLTrack_fields)
+            imgui.end_window()
+        end
+
+        openend_player_UserVariables = imgui.begin_window("UserVariables(Player)", openend_player_UserVariables, 1 << 10)
+        if openend_player_UserVariables then
+            local motion = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
+            local uvar_hub = motion:get_VariablesHub()
+            if uvar_hub then
+                local uvarList = {}
+                local varsCount = uvar_hub:getUserVariablesCount()
+                local count = uvar_hub:get_VariableSum()
+                imgui.text(string.format("getUserVariablesCount: %s", tostring(varsCount)))
+                imgui.text(string.format("VariableSum: %s", tostring(count)))
+                for i = 1, count do
+                    local uvar = uvar_hub:getVariableFromIndex(i-1)
+                    local name = string.lower(uvar:get_Name())
+                    local show = name:find("combo") or name:find("attack") or name:find("allcancel") or name:find("battou")
+                    if show then
+                        table.insert(uvarList, uvar)
+                    end
+                end
+                display_UserVariables(uvarList)
+            end
+            imgui.end_window()
+        end
+        
+        openend_tree_UserVariables = imgui.begin_window("UserVariables(Tree Layer)", openend_tree_UserVariables, 1 << 10)
+        if openend_tree_UserVariables then
+            local layer = nil
+            local motion_fsm2 = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.MotionFsm2"))
+            if motion_fsm2 ~= nil then
+                layer = motion_fsm2:call("getLayer", chosen_layer)
+            end
+            if layer then
+                local uvar_hub = layer:get_UserVariable() -- why isn't this the same as the tree?
+                local varsCount = uvar_hub:getUserVariablesCount()
+                local count = uvar_hub:get_VariableSum()
+                imgui.text(string.format("getUserVariablesCount: %s", tostring(varsCount)))
+                local uvarList = {}
+                imgui.text(string.format("VariableSum: %s", tostring(count)))
+                for i = 1, count do
+                    local uvar = uvar_hub:getVariableFromIndex(i-1)
+                    local name = string.lower(uvar:get_Name())
+                    local show = name:find("combo") or name:find("attack") or name:find("allcancel") or name:find("battou")
+                    if show then
+                        table.insert(uvarList, uvar)
+                    end
+                end
+                display_UserVariables(uvarList)
+            end
+            imgui.end_window()
+        end
+    end
+
+    
+    local width = statics.width
+    local height = statics.height
+    -- draw.line(width / 2-10, height / 2, width / 2+10, height / 2, 0xFF0000FF)
+    -- draw.line(width / 2, height / 2-10, width / 2, height / 2 + 10, 0xFF00FF00)
+    
+    local disp_size = imgui.get_display_size()
+    imgui.set_next_window_size({EDITOR_SIZE.x, EDITOR_SIZE.y}, 1 << 1) -- ImGuiCond_Once
+    imgui.set_next_window_pos({disp_size.x / 2 - (EDITOR_SIZE.x / 2), disp_size.y / 2 - (EDITOR_SIZE.y / 2)}, 1 << 1)
+
     if not imgui.begin_window(name, true, 1 << 10) then return end
-    --[[if not imgui.begin_child_window(name .. "2") then 
-        imgui.end_window()
-        return 
-    end]]
 
     local tree = nil
     local layer = nil
@@ -3962,14 +4080,7 @@ local function draw_stupid_editor(name)
             cfg.sidePanelWidth, cfg.editorPanelWidth = lw, rw
         end
 
-        if imgui.begin_child_window("SidePanel",  Vector2f.new(cfg.sidePanelWidth-4, 0)) then
-            if player then
-                if imgui.tree_node("Player "..  tostring(player:get_address())) then
-                    object_explorer:handle_address(player:get_address())
-                    imgui.tree_pop()
-                end
-            end
-            
+        if imgui.begin_child_window("SidePanel",  Vector2f.new(cfg.sidePanelWidth-4, 0)) then            
             -- Search
             --[[if imgui.begin_child_window("Search", Vector2f.new(SIDEBAR_BASE_WIDTH, 100), true) then
 
@@ -4094,24 +4205,11 @@ local function draw_stupid_editor(name)
     imgui.end_window()
 end
 
-local EDITOR_SIZE = {
-    x = math.max(imgui.get_display_size().x / 4, 640),
-    y = math.max(imgui.get_display_size().y / 2, 480)
-}
 
 re.on_frame(function()
     imgui.push_style_var(ImGuiStyleVar.ImGuiStyleVar_WindowRounding, 10.0)
 
     delta_time = os.clock() - last_time
-    
-    local width = statics.width
-    local height = statics.height
-    -- draw.line(width / 2-10, height / 2, width / 2+10, height / 2, 0xFF0000FF)
-    -- draw.line(width / 2, height / 2-10, width / 2, height / 2 + 10, 0xFF00FF00)
-    
-    local disp_size = imgui.get_display_size()
-    imgui.set_next_window_size({EDITOR_SIZE.x, EDITOR_SIZE.y}, 1 << 1) -- ImGuiCond_Once
-    imgui.set_next_window_pos({disp_size.x / 2 - (EDITOR_SIZE.x / 2), disp_size.y / 2 - (EDITOR_SIZE.y / 2)}, 1 << 1)
     draw_stupid_editor("Behavior Tree Editor v0.1")
 
     last_time = os.clock()
