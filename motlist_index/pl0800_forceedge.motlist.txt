@@ -1,5 +1,6 @@
 
-BankID 210 pl0800_forceedge.motlist
+BankID : 220
+pl0800_forceedge.motlist.85
 
 
 pl0800_FE_Idle_Battle (120 frames)

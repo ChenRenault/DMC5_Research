@@ -1,4 +1,5 @@
-BankID 210 pl0800_beowulf.motlist 
+BankID : 210
+pl0800_beowulf.motlist.85
 
 
 pl0800_BW_Idle_Battle (51 frames)

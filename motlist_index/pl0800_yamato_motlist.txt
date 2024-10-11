@@ -1,5 +1,6 @@
 
-bankId 200 pl0800_yamato_motlist
+BankID : 200
+pl0800_yamato_motlist.85
 
 pl0800_YMT_Idle_Battle (105 frames)
 pl0800_Idle_Normal_to_YMT_Idle_Battle (105 frames)

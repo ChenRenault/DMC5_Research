@@ -1,5 +1,5 @@
-
-pl0800_move.motlist
+BankID : 1
+pl0800_move.motlist.85
 
 pl0800_Walk_Loop (64 frames)
 pl0800_Walk_Start (34 frames)

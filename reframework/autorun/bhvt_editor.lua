@@ -2412,6 +2412,11 @@ local player_field_name_list_base = {
     "<commnadReserveType>k__BackingField",
     "<isJudgeMentCutJR>k__BackingField",
     "JudgementCutJR_EnableCount",
+    "MotionBankBase",
+    "MotionBankDamage",
+    "MotionBankExtra",
+    "MotionBankMove",
+    "<UseLocomotionBankID>k__BackingField",
 }
 for i, v in ipairs(player_field_name_list_base) do
     table.insert(player_field_name_list, v)
@@ -3552,6 +3557,31 @@ local function draw_stupid_editor(name)
                 object_explorer:handle_address(player:get_address())
                 imgui.tree_pop()
             end
+            if imgui.tree_node("Motion") then
+                local motion = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
+                if motion then
+                    object_explorer:handle_address(motion:get_address())
+                    local count = motion:call("getActiveMotionBankCount()") or 0                    
+                    if imgui.tree_node(string.format("ActiveMotionBank[%s]##Motion_ActiveMotionBank_"..motion:get_address(), count)) then
+                        for i = 1, count do
+                            local motionBank = motion:call("getActiveMotionBank(System.UInt32)", i-1)
+                            if motionBank then
+                                local addr = motionBank:get_address()
+                                local name = motionBank:get_Name()
+                                local bankID = motionBank:get_BankID()
+                                local name_motion_ID = string.format("Motion[%s][%s][%s]##Motion_"..addr, i, name, bankID)
+                                if imgui.tree_node(name_motion_ID) then
+                                    object_explorer:handle_address(addr)
+                                    imgui.tree_pop()
+                                end
+                            end
+                        end
+                        imgui.tree_pop()
+                    end
+                end
+                imgui.tree_pop()
+            end
+            
             local fieldNames = {
                 "<commandManager>k__BackingField",
                 "<shellAddTrack>k__BackingField",
@@ -3580,6 +3610,7 @@ local function draw_stupid_editor(name)
 
         openend_player_UserVariables = imgui.begin_window("UserVariables(Player)", openend_player_UserVariables, 1 << 10)
         if openend_player_UserVariables then
+            changed, text_player_UserVariables = imgui.input_text("Filter", text_player_UserVariables)
             local motion = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.Motion"))
             local uvar_hub = motion:get_VariablesHub()
             if uvar_hub then
@@ -3591,7 +3622,7 @@ local function draw_stupid_editor(name)
                 for i = 1, count do
                     local uvar = uvar_hub:getVariableFromIndex(i-1)
                     local name = string.lower(uvar:get_Name())
-                    local show = name:find("combo") or name:find("attack") or name:find("allcancel") or name:find("battou")
+                    local show = (not text_player_UserVariables or text_player_UserVariables=="") or name:find(text_player_UserVariables)
                     if show then
                         table.insert(uvarList, uvar)
                     end
@@ -3603,6 +3634,7 @@ local function draw_stupid_editor(name)
         
         openend_tree_UserVariables = imgui.begin_window("UserVariables(Tree Layer)", openend_tree_UserVariables, 1 << 10)
         if openend_tree_UserVariables then
+            changed, text_tree_UserVariables = imgui.input_text("Filter", text_tree_UserVariables)
             local layer = nil
             local motion_fsm2 = playerGO:call("getComponent(System.Type)", sdk.typeof("via.motion.MotionFsm2"))
             if motion_fsm2 ~= nil then
@@ -3618,7 +3650,7 @@ local function draw_stupid_editor(name)
                 for i = 1, count do
                     local uvar = uvar_hub:getVariableFromIndex(i-1)
                     local name = string.lower(uvar:get_Name())
-                    local show = name:find("combo") or name:find("attack") or name:find("allcancel") or name:find("battou")
+                    local show = (not text_tree_UserVariables or text_tree_UserVariables=="") or name:find(text_tree_UserVariables)
                     if show then
                         table.insert(uvarList, uvar)
                     end

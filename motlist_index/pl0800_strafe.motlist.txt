@@ -1,0 +1,30 @@
+
+BankID : 101
+pl0800_strafe.motlist.85
+
+
+pl0800_Move_Start_R
+pl0800_Move_Start_L
+pl0800_Strafe_Trun_L
+pl0800_Strafe_Trun_R
+pl0800_Move_Loop
+pl0800_Move_Loop_Yamato
+pl0800_Move_Stop
+pl0800_Move_Start_180
+pl0800_Move_Turn_L
+pl0800_Move_Turn_R
+pl0800_Strafe_Front
+pl0800_Strafe_Back
+
+0 -- pl0800_Move_Start_R
+1 -- pl0800_Move_Start_L
+5 -- pl0800_Strafe_Trun_L
+6 -- pl0800_Strafe_Trun_R
+10 -- pl0800_Move_Loop
+11 -- pl0800_Move_Loop_Yamato
+20 -- pl0800_Move_Stop
+30 -- pl0800_Move_Start_180
+40 -- pl0800_Move_Turn_L
+41 -- pl0800_Move_Turn_R
+100 -- pl0800_Strafe_Front
+110 -- pl0800_Strafe_Back
