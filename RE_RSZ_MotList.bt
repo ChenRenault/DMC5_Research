@@ -1443,8 +1443,7 @@ typedef struct
     
     FSeek(start+parameterTbl);
     struct PARAM {
-        struct StringRead Name(-1, start, 0, 1, 1);
-        uint A;
+        struct StringRead Name(-1, start, 0, 1, 0);
         enum {
             ParamType_Bool = 0x0,
             ParamType_U8 = 0x1,
