@@ -1,0 +1,5 @@
+base:0x00007FF616C40000
+
+.text:00007FF61957D5A0 ; __int64 __fastcall re_loadMotlist_mtre(via::motion::tree::_mtre::_MotlistData *a1, __int64 a2)
+
+.text:00007FF7DF66BB50 ; void __fastcall re_loadUvarData(__int64 a1, __int64 startOffset)

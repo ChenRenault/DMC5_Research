@@ -1,0 +1,28 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: RE_RSZ_uvar.bt
+//   Authors: ChenRenault
+//   Version: 0.01
+//   Purpose: Parse RE Engine uvar (DMC5)
+//  Category: RE Engine
+// File Mask: *.uvar.*
+//  ID Bytes: [+4] 75 76 61 72
+//   History: 
+//------------------------------------------------
+LittleEndian();
+
+
+FSeek(0);
+struct {
+    uint32  Version;
+    char    ID[4];
+    uint64  addrOfs_8h <format=hex>;
+    uint64  addrOfs_10h <format=hex>;
+    uint64  addrOfs_18h <format=hex>;
+    uint64  addrOfs_20h <format=hex>;
+    uint64  addrOfs_28h <format=hex>;
+    uint32  uint32_30h <format=hex>;
+
+    uint16 count_34h;
+} HEADER;
