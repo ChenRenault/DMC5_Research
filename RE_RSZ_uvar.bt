@@ -14,7 +14,7 @@ LittleEndian();
 
 
 FSeek(0);
-struct {
+typedef struct {
     uint32  Version;
     char    ID[4];
     uint64  addrOfs_8h <format=hex>;
@@ -25,4 +25,27 @@ struct {
     uint32  uint32_30h <format=hex>;
 
     uint16 count_34h;
-} HEADER;
+    uint16 uint16_36h;
+    uint64 uint64_38h;
+} Header;
+
+typedef struct 
+{
+    uint64  addrOfs_0h <format=hex>;
+    uint64  addrOfs_8h <format=hex>;
+    uint64  addrOfs_10h <format=hex>;
+    uint64  addrOfs_18h <format=hex>;
+    uint64  addrOfs_20h <format=hex>;
+    uint64  addrOfs_28h <format=hex>;
+} stDataA;
+
+typedef struct 
+{
+    Header header;
+
+    FSeek(header.addrOfs_10h);
+    stDataA daArr[header.count_34h];
+    
+} UvarData;
+
+UvarData data;
