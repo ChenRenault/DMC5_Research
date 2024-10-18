@@ -25,7 +25,7 @@ typedef struct {
     uint32  uint32_30h <format=hex>;
 
     uint16 count_34h;
-    uint16 uint16_36h;
+    uint16 count_36h;
     uint64 uint64_38h;
 } Header;
 
@@ -37,15 +37,37 @@ typedef struct
     uint64  addrOfs_18h <format=hex>;
     uint64  addrOfs_20h <format=hex>;
     uint64  addrOfs_28h <format=hex>;
-} stDataA;
+} DataA;
+
+typedef struct 
+{
+    uint64  addrOfs_0h <format=hex>;
+    uint64  addrOfs_8h <format=hex>;
+    uint64  addrOfs_10h <format=hex>;
+    uint64  addrOfs_18h <format=hex>;
+} Data_20h;
+
+typedef struct 
+{
+    uint64  addrOfs_0h <format=hex>;
+    uint64  addrOfs_8h <format=hex>;
+    uint64  addrOfs_10h <format=hex>;
+    uint64  addrOfs_18h <format=hex>;
+} Data_28h;
 
 typedef struct 
 {
     Header header;
 
     FSeek(header.addrOfs_10h);
-    stDataA daArr[header.count_34h];
+    DataA daArr[header.count_34h];
     
+    FSeek(header.addrOfs_20h);
+    Data_20h data_20h;
+
+    FSeek(header.addrOfs_28h);
+    Data_28h data_28h;
+
 } UvarData;
 
 UvarData data;
