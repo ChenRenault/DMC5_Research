@@ -16,7 +16,7 @@ LittleEndian();
 FSeek(0);
 typedef struct {
     uint32  Version;
-    char    ID[4];
+    uint32  ID  <format=hex>;
     uint64  addrOfs_8h <format=hex>;
     uint64  addrOfs_10h <format=hex>;
     uint64  addrOfs_18h <format=hex>;
@@ -35,9 +35,13 @@ typedef struct
     uint64  addrOfs_8h <format=hex>;
     uint64  addrOfs_10h <format=hex>;
     uint64  addrOfs_18h <format=hex>;
-    uint64  addrOfs_20h <format=hex>;
-    uint64  addrOfs_28h <format=hex>;
-} DataA;
+    uint64  addrOfs_20h <format=hex>;    
+    byte addrOfs_28h_0;
+    byte addrOfs_28h_1;
+    byte addrOfs_28h_2;
+    byte addrOfs_28h_3;
+    uint32 addrOfs_2Ch;
+} Data_10h;
 
 typedef struct 
 {
@@ -60,7 +64,7 @@ typedef struct
     Header header;
 
     FSeek(header.addrOfs_10h);
-    DataA daArr[header.count_34h];
+    Data_10h data_10h[header.count_34h];
     
     FSeek(header.addrOfs_20h);
     Data_20h data_20h;

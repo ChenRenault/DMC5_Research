@@ -1,5 +1,46 @@
-base:0x00007FF616C40000
+base:0000000140000000
 
-.text:00007FF61957D5A0 ; __int64 __fastcall re_loadMotlist_mtre(via::motion::tree::_mtre::_MotlistData *a1, __int64 a2)
+.text:000000014293D5A0 ; __int64 __fastcall re_loadMotlist_mtre(via::motion::tree::_mtre::_MotlistData *a1, __int64 a2)
 
-.text:00007FF7DF66BB50 ; void __fastcall re_loadUvarData(__int64 a1, __int64 startOffset)
+.text:0000000142CABB50 ; void __fastcall re_loadUvarData(via::uvar::UvarData *pUvarData, __int64 addrStart)
+
+
+#uvar_hade_check
+import ida_bytes
+head = ida_bytes.get_dword(cpu.RDX+0x4)
+matched = head == 0x72617675
+print(head, hex(head), hex(0x72617675), matched)
+if(matched):
+    return True
+return False
+
+#uvar_hade_check
+import ida_bytes
+head = ida_bytes.get_qword(cpu.RDX+0x40)
+magic = 0x4390E397F242FD84 
+matched = head == magic
+print(head, hex(head), magic, hex(magic), matched)
+if(matched):
+    return True
+return False
+
+
+#uvar_hade_check
+import ida_bytes
+head = ida_bytes.get_qword(cpu.RCX+0x40)
+magic = 0x4390E397F242FD84 
+matched = head == magic
+print(head, hex(head), magic, hex(magic), matched)
+if(matched):
+    return True
+return False
+
+#pl0800_action.uvar.2  Data_10h data_10h
+import ida_bytes
+head = ida_bytes.get_qword(cpu.R14+0x40)
+magic = 0x4390E397F242FD84
+matched = head == magic
+print(head, hex(head), magic, hex(magic), matched, hex(ida_bytes.get_qword(cpu.R14+0x40)))
+if(matched):
+    return True
+return False
