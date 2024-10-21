@@ -901,7 +901,6 @@ local function display_condition(tree, i, node, name, cond)
 
         end
 
-        imgui.text(string.format("Evaluate: %s", cond:evaluate() and "True" or "False"))
         if uvar ~= nil then
             if imgui.tree_node("UVar:" .. uvar:get_Name()) then
                 imgui.input_text("Address", string.format("%X", uvar:get_address()))

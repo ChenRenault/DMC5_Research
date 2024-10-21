@@ -1556,8 +1556,8 @@ typedef struct
         if (exists(p.String))
             return p.String.String;
         if (exists(p.value))
-            if (p.Name.String == "MotionID")
-                return ReadMotNodeId(p.value);
+            // if (p.Name.String == "MotionID")
+            //     return ReadMotNodeId(p.value);
             SPrintf(s, "%g", p.value);
         return s;
     }
